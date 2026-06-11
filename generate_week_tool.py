@@ -54,7 +54,7 @@ def infection_season_week(year: int, week: int) -> tuple[int, int, int]:
 
 def format_infection_season(year: int, week: int) -> str:
     season_start_year, season_end_year, season_week = infection_season_week(year, week)
-    return f"{season_start_year}~{season_end_year}シーズンの第{season_week}週"
+    return f"{season_start_year}/{season_end_year}シーズンの第{season_week}週"
 
 
 def normalize_digits(value: str) -> str:
@@ -392,6 +392,13 @@ def render_html() -> str:
       outline-offset: 2px;
     }}
 
+    button:disabled {{
+      border-color: var(--line);
+      background: #e8ece5;
+      color: var(--muted);
+      cursor: not-allowed;
+    }}
+
     .result {{
       display: grid;
       gap: 10px;
@@ -426,6 +433,33 @@ def render_html() -> str:
       color: var(--muted);
       font-size: 0.92rem;
       line-height: 1.55;
+    }}
+
+    .copy-detail-list {{
+      display: grid;
+      gap: 8px;
+    }}
+
+    .copy-detail {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 40px;
+    }}
+
+    .detail-copy {{
+      min-height: 36px;
+      padding: 0 12px;
+      border-color: var(--line-strong);
+      background: #ffffff;
+      color: var(--accent-dark);
+      font-size: 0.84rem;
+    }}
+
+    .detail-copy:hover:not(:disabled) {{
+      border-color: var(--accent);
+      background: var(--accent-soft);
     }}
 
     .quick-list {{
@@ -521,6 +555,15 @@ def render_html() -> str:
         grid-template-columns: 1fr;
       }}
 
+      .copy-detail {{
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }}
+
+      .detail-copy {{
+        width: fit-content;
+      }}
+
       .quick-list {{
         grid-template-columns: 1fr;
       }}
@@ -563,7 +606,16 @@ def render_html() -> str:
         <div class="result" aria-live="polite">
           <span class="result-label">出力</span>
           <p id="weekOutput" class="date-output">----</p>
-          <p id="weekMessage" class="meta">入力すると自動で変換します。</p>
+          <div class="copy-detail-list">
+            <div class="copy-detail">
+              <p id="weekMessage" class="meta">入力すると自動で変換します。</p>
+              <button id="weekRangeCopyButton" class="detail-copy" type="button" disabled>コピー</button>
+            </div>
+            <div class="copy-detail">
+              <p id="weekSeasonMessage" class="meta">感染症シーズン年も表示します。</p>
+              <button id="weekSeasonCopyButton" class="detail-copy" type="button" disabled>コピー</button>
+            </div>
+          </div>
         </div>
 
         <div class="quick-list" aria-label="入力例">
@@ -619,8 +671,11 @@ def render_html() -> str:
     const weekInput = document.querySelector("#weekInput");
     const weekOutput = document.querySelector("#weekOutput");
     const weekMessage = document.querySelector("#weekMessage");
+    const weekSeasonMessage = document.querySelector("#weekSeasonMessage");
     const weekStatus = document.querySelector("#weekStatus");
     const weekCopyButton = document.querySelector("#weekCopyButton");
+    const weekRangeCopyButton = document.querySelector("#weekRangeCopyButton");
+    const weekSeasonCopyButton = document.querySelector("#weekSeasonCopyButton");
     const eraInput = document.querySelector("#eraInput");
     const eraOutput = document.querySelector("#eraOutput");
     const eraMessage = document.querySelector("#eraMessage");
@@ -696,7 +751,7 @@ def render_html() -> str:
 
     function formatInfectionSeason(year, week) {{
       const season = infectionSeasonWeek(year, week);
-      return `${{season.startYear}}~${{season.endYear}}シーズンの第${{season.week}}週`;
+      return `${{season.startYear}}/${{season.endYear}}シーズンの第${{season.week}}週`;
     }}
 
     function reportingWeekMonday(year, week) {{
@@ -813,12 +868,19 @@ def render_html() -> str:
       return eraYear === 1 ? "元" : String(eraYear);
     }}
 
+    function setWeekDetailCopyEnabled(isEnabled) {{
+      weekRangeCopyButton.disabled = !isEnabled;
+      weekSeasonCopyButton.disabled = !isEnabled;
+    }}
+
     function convertWeek() {{
       const parsed = parseReportingWeek(weekInput.value);
 
       if (!parsed) {{
         weekOutput.textContent = "----";
         weekMessage.textContent = "例: 2025年第1週";
+        weekSeasonMessage.textContent = "感染症シーズン年も表示します。";
+        setWeekDetailCopyEnabled(false);
         setStatus(weekStatus, "error", "形式確認");
         return;
       }}
@@ -829,6 +891,8 @@ def render_html() -> str:
       if (year < 1900 || year > 2100) {{
         weekOutput.textContent = "----";
         weekMessage.textContent = "対応範囲は1900年から2100年です。";
+        weekSeasonMessage.textContent = "----";
+        setWeekDetailCopyEnabled(false);
         setStatus(weekStatus, "error", "範囲外");
         return;
       }}
@@ -836,6 +900,8 @@ def render_html() -> str:
       if (week < 1 || week > maxWeek) {{
         weekOutput.textContent = "----";
         weekMessage.textContent = `${{year}}年は第${{maxWeek}}週までです。`;
+        weekSeasonMessage.textContent = "----";
+        setWeekDetailCopyEnabled(false);
         setStatus(weekStatus, "error", "週番号");
         return;
       }}
@@ -845,7 +911,9 @@ def render_html() -> str:
       sunday.setUTCDate(sunday.getUTCDate() + 6);
 
       weekOutput.textContent = formatDate(monday);
-      weekMessage.textContent = `${{year}}年第${{week}}週: ${{formatJapaneseDate(monday)}} - ${{formatJapaneseDate(sunday)}} / ${{formatInfectionSeason(year, week)}}`;
+      weekMessage.textContent = `${{year}}年第${{week}}週: ${{formatJapaneseDate(monday)}} - ${{formatJapaneseDate(sunday)}}`;
+      weekSeasonMessage.textContent = formatInfectionSeason(year, week);
+      setWeekDetailCopyEnabled(true);
       setStatus(weekStatus, "ok", "変換済");
     }}
 
@@ -868,15 +936,15 @@ def render_html() -> str:
       setStatus(eraStatus, "ok", "変換済");
     }}
 
-    async function copyOutput(outputElement, statusElement, focusElement) {{
-      const value = outputElement.textContent.trim();
-      if (!/^\\d{{4}}\\/\\d{{2}}\\/\\d{{2}}$/.test(value)) {{
+    async function copyText(value, statusElement, focusElement) {{
+      const normalizedValue = value.trim();
+      if (!normalizedValue || normalizedValue === "----") {{
         setStatus(statusElement, "error", "未変換");
         return;
       }}
 
       try {{
-        await navigator.clipboard.writeText(value);
+        await navigator.clipboard.writeText(normalizedValue);
         setStatus(statusElement, "ok", "コピー済");
       }} catch {{
         focusElement.focus();
@@ -884,9 +952,21 @@ def render_html() -> str:
       }}
     }}
 
+    async function copyOutput(outputElement, statusElement, focusElement) {{
+      const value = outputElement.textContent.trim();
+      if (!/^\\d{{4}}\\/\\d{{2}}\\/\\d{{2}}$/.test(value)) {{
+        setStatus(statusElement, "error", "未変換");
+        return;
+      }}
+
+      await copyText(value, statusElement, focusElement);
+    }}
+
     weekInput.addEventListener("input", convertWeek);
     eraInput.addEventListener("input", convertEra);
     weekCopyButton.addEventListener("click", () => copyOutput(weekOutput, weekStatus, weekInput));
+    weekRangeCopyButton.addEventListener("click", () => copyText(weekMessage.textContent, weekStatus, weekInput));
+    weekSeasonCopyButton.addEventListener("click", () => copyText(weekSeasonMessage.textContent, weekStatus, weekInput));
     eraCopyButton.addEventListener("click", () => copyOutput(eraOutput, eraStatus, eraInput));
     document.querySelectorAll("[data-week-example]").forEach((button) => {{
       button.addEventListener("click", () => {{

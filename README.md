@@ -34,7 +34,7 @@ Example:
 
 ```text
 2025年第1週 -> 2024/12/30
-2025年第3週 -> 2024~2025 season, week 20
+2025年第3週 -> 2024/2025 season, week 20
 ```
 
 ### Japanese Era Dates
