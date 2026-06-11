@@ -3,17 +3,22 @@ from __future__ import annotations
 
 import argparse
 import re
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 
 SOURCE_URL = "https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html"
+WAREKI_SOURCE_URL = "https://www.jcb.co.jp/processing/share/wareki.html"
 OUTPUT_FILE = Path("index.html")
-REIWA_START = date(2019, 5, 1)
-REIWA_BASE_YEAR = 2018
+ERA_DEFINITIONS = {
+    "令和": {"abbr": "R", "base_year": 2018, "start": date(2019, 5, 1), "end": None},
+    "平成": {"abbr": "H", "base_year": 1988, "start": date(1989, 1, 8), "end": date(2019, 4, 30)},
+    "昭和": {"abbr": "S", "base_year": 1925, "start": date(1926, 12, 25), "end": date(1989, 1, 7)},
+}
+ERA_BY_ABBR = {definition["abbr"]: name for name, definition in ERA_DEFINITIONS.items()}
 FULLWIDTH_TRANSLATION = str.maketrans(
-    "０１２３４５６７８９Ｒｒ．。／－　",
-    "0123456789Rr../- ",
+    "０１２３４５６７８９ＲｒＨｈＳｓ．。／－ー　",
+    "0123456789RrHhSs../-- ",
 )
 
 
@@ -55,36 +60,72 @@ def convert_reporting_week_label(value: str) -> str:
     return reporting_week_monday(year, week).strftime("%Y/%m/%d")
 
 
-def parse_reiwa_label(value: str) -> tuple[int, int, int, bool]:
+def month_end_date(year: int, month: int) -> date:
+    if month == 12:
+        return date(year, 12, 31)
+    return date(year, month + 1, 1) - timedelta(days=1)
+
+
+def parse_wareki_label(value: str) -> tuple[str, int, int, int, bool]:
     normalized = normalize_digits(value).strip().replace(" ", "").upper()
-    match = re.fullmatch(r"令和(元|\d{1,2})年(\d{1,2})月(?:(\d{1,2})日?)?", normalized)
+    match = re.fullmatch(r"(令和|平成|昭和)(元|\d{1,3})年(\d{1,2})月(?:(\d{1,2})日?)?", normalized)
+    era_name = None
     if not match:
-        match = re.fullmatch(r"R(元|\d{1,2})[./-](\d{1,2})(?:[./-](\d{1,2}))?", normalized)
+        match = re.fullmatch(r"([RHS])(元|\d{1,3})[./-](\d{1,2})(?:[./-](\d{1,2}))?", normalized)
+        if match:
+            era_name = ERA_BY_ABBR[match.group(1)]
 
     if not match:
-        raise ValueError("入力形式は '令和6年4月1日' または 'R6.4.1' のようにしてください。")
+        raise ValueError("入力形式は '平成31年4月30日' または 'H31.4.30' のようにしてください。")
 
-    era_year = 1 if match.group(1) == "元" else int(match.group(1))
-    month = int(match.group(2))
-    day_was_defaulted = match.group(3) is None
-    day = int(match.group(3) or 1)
+    if era_name is None:
+        era_name = match.group(1)
+        year_token = match.group(2)
+        month_token = match.group(3)
+        day_token = match.group(4)
+    else:
+        year_token = match.group(2)
+        month_token = match.group(3)
+        day_token = match.group(4)
+
+    era_year = 1 if year_token == "元" else int(year_token)
+    month = int(month_token)
+    day_was_defaulted = day_token is None
+    day = int(day_token or 1)
 
     if era_year < 1:
-        raise ValueError("令和の年数は1以上で入力してください。")
+        raise ValueError("和暦の年数は1以上で入力してください。")
 
-    return REIWA_BASE_YEAR + era_year, month, day, day_was_defaulted
+    if not 1 <= month <= 12:
+        raise ValueError("実在する日付を入力してください。")
+
+    return era_name, era_year, month, day, day_was_defaulted
 
 
-def convert_reiwa_label(value: str) -> str:
-    year, month, day, _ = parse_reiwa_label(value)
+def convert_wareki_label(value: str) -> str:
+    era_name, era_year, month, day, day_was_defaulted = parse_wareki_label(value)
+    era = ERA_DEFINITIONS[era_name]
+    year = era["base_year"] + era_year
 
     try:
         converted = date(year, month, day)
     except ValueError as exc:
         raise ValueError("実在する日付を入力してください。") from exc
 
-    if converted < REIWA_START:
-        raise ValueError("令和は2019年5月1日からです。")
+    start = era["start"]
+    end = era["end"]
+
+    if day_was_defaulted:
+        month_start = date(year, month, 1)
+        month_end = month_end_date(year, month)
+        if month_end < start or (end is not None and month_start > end):
+            raise ValueError(f"{era_name}{era_year}年{month}月は{era_name}の期間外です。")
+    elif converted < start or (end is not None and converted > end):
+        if end is None:
+            raise ValueError(f"{era_name}は{start.strftime('%Y/%m/%d')}からです。")
+        raise ValueError(
+            f"{era_name}は{start.strftime('%Y/%m/%d')}から{end.strftime('%Y/%m/%d')}までです。"
+        )
 
     return converted.strftime("%Y/%m/%d")
 
@@ -93,7 +134,7 @@ def convert_label(value: str) -> str:
     try:
         year, week = parse_reporting_week_label(value)
     except ValueError:
-        return convert_reiwa_label(value)
+        return convert_wareki_label(value)
 
     max_week = weeks_in_reporting_year(year)
     if not 1 <= week <= max_week:
@@ -469,7 +510,7 @@ def render_html() -> str:
     <section class="overview" aria-labelledby="page-title">
       <div class="kicker">DATE / JIHS</div>
       <h1 id="page-title">日付 変換ツール</h1>
-      <p class="lead">報告週から週の最初の月曜日へ、または令和表記から西暦へ。どちらも YYYY/MM/DD で返します。</p>
+      <p class="lead">報告週から週の最初の月曜日へ、または昭和・平成・令和の和暦表記から西暦へ。どちらも YYYY/MM/DD で返します。</p>
       <div class="calendar-band" aria-hidden="true">
         <span class="day">月</span>
         <span class="day">火</span>
@@ -518,7 +559,7 @@ def render_html() -> str:
 
     <section class="tool" aria-label="和暦西暦変換フォーム">
       <div class="tool-header">
-        <p class="tool-title">令和から西暦の日付へ</p>
+        <p class="tool-title">和暦から西暦の日付へ</p>
         <output id="eraStatus" class="status">待機中</output>
       </div>
 
@@ -526,7 +567,7 @@ def render_html() -> str:
         <label for="eraInput">
           入力
           <div class="input-row">
-            <input id="eraInput" type="text" inputmode="text" autocomplete="off" value="令和6年4月" aria-describedby="eraMessage">
+            <input id="eraInput" type="text" inputmode="text" autocomplete="off" value="平成31年4月30日" aria-describedby="eraMessage">
             <button id="eraCopyButton" type="button">コピー</button>
           </div>
         </label>
@@ -538,14 +579,15 @@ def render_html() -> str:
         </div>
 
         <div class="quick-list" aria-label="入力例">
-          <button type="button" data-era-example="令和1年5月1日">令和1年5月1日</button>
-          <button type="button" data-era-example="令和6年4月">令和6年4月</button>
-          <button type="button" data-era-example="R6.4.1">R6.4.1</button>
+          <button type="button" data-era-example="昭和64年1月7日">昭和64年1月7日</button>
+          <button type="button" data-era-example="平成31年4月30日">平成31年4月30日</button>
+          <button type="button" data-era-example="R6.4">R6.4</button>
         </div>
       </div>
 
       <div class="source">
-        <span>令和元年は2019年5月1日開始。日がない入力は月初に設定。</span>
+        <span>略号は S / H / R。日がない入力は月初に設定。</span>
+        <a href="{WAREKI_SOURCE_URL}" target="_blank" rel="noopener">和暦西暦早見表</a>
       </div>
     </section>
     </div>
@@ -562,13 +604,22 @@ def render_html() -> str:
     const eraMessage = document.querySelector("#eraMessage");
     const eraStatus = document.querySelector("#eraStatus");
     const eraCopyButton = document.querySelector("#eraCopyButton");
-    const REIWA_START_MS = Date.UTC(2019, 4, 1);
+    const ERAS = {{
+      "令和": {{ abbr: "R", baseYear: 2018, start: "2019-05-01", end: null }},
+      "平成": {{ abbr: "H", baseYear: 1988, start: "1989-01-08", end: "2019-04-30" }},
+      "昭和": {{ abbr: "S", baseYear: 1925, start: "1926-12-25", end: "1989-01-07" }},
+    }};
+    const ERA_BY_ABBR = {{ R: "令和", H: "平成", S: "昭和" }};
 
     function normalizeDigits(value) {{
       return value
         .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
         .replace(/[Ｒ]/g, "R")
         .replace(/[ｒ]/g, "r")
+        .replace(/[Ｈ]/g, "H")
+        .replace(/[ｈ]/g, "h")
+        .replace(/[Ｓ]/g, "S")
+        .replace(/[ｓ]/g, "s")
         .replace(/[．。]/g, ".")
         .replace(/[／]/g, "/")
         .replace(/[－ー]/g, "-")
@@ -637,36 +688,80 @@ def render_html() -> str:
       return candidate;
     }}
 
-    function parseReiwaDate(value) {{
+    function isoToUtcDate(value) {{
+      const [year, month, day] = value.split("-").map(Number);
+      return makeUtcDate(year, month, day);
+    }}
+
+    function monthEndDate(year, month) {{
+      return new Date(Date.UTC(year, month, 0));
+    }}
+
+    function parseWarekiDate(value) {{
       const normalized = normalizeDigits(value).trim().replace(/\\s+/g, "").toUpperCase();
-      let match = normalized.match(/^令和(元|\\d{{1,2}})年(\\d{{1,2}})月(?:(\\d{{1,2}})日?)?$/);
-      if (!match) {{
-        match = normalized.match(/^R(元|\\d{{1,2}})[.\\/-](\\d{{1,2}})(?:[.\\/-](\\d{{1,2}}))?$/);
+      let match = normalized.match(/^(令和|平成|昭和)(元|\\d{{1,3}})年(\\d{{1,2}})月(?:(\\d{{1,2}})日?)?$/);
+      let eraName;
+      let eraYearToken;
+      let monthToken;
+      let dayToken;
+
+      if (match) {{
+        eraName = match[1];
+        eraYearToken = match[2];
+        monthToken = match[3];
+        dayToken = match[4];
       }}
 
       if (!match) {{
-        return {{ error: "例: 令和6年4月1日 / R6.4.1" }};
+        match = normalized.match(/^([RHS])(元|\\d{{1,3}})[.\\/-](\\d{{1,2}})(?:[.\\/-](\\d{{1,2}}))?$/);
+        if (match) {{
+          eraName = ERA_BY_ABBR[match[1]];
+          eraYearToken = match[2];
+          monthToken = match[3];
+          dayToken = match[4];
+        }}
       }}
 
-      const eraYear = match[1] === "元" ? 1 : Number(match[1]);
-      const month = Number(match[2]);
-      const defaultedDay = !match[3];
-      const day = Number(match[3] || 1);
+      if (!match) {{
+        return {{ error: "例: 平成31年4月30日 / H31.4.30" }};
+      }}
+
+      const era = ERAS[eraName];
+      const eraYear = eraYearToken === "元" ? 1 : Number(eraYearToken);
+      const month = Number(monthToken);
+      const defaultedDay = !dayToken;
+      const day = Number(dayToken || 1);
 
       if (eraYear < 1) {{
-        return {{ error: "令和の年数は1以上で入力してください。" }};
+        return {{ error: "和暦の年数は1以上で入力してください。" }};
       }}
 
-      const converted = makeUtcDate(2018 + eraYear, month, day);
+      if (month < 1 || month > 12) {{
+        return {{ error: "実在する日付を入力してください。" }};
+      }}
+
+      const converted = makeUtcDate(era.baseYear + eraYear, month, day);
       if (!converted) {{
         return {{ error: "実在する日付を入力してください。" }};
       }}
 
-      if (converted.getTime() < REIWA_START_MS) {{
-        return {{ error: "令和は2019年5月1日からです。" }};
+      const start = isoToUtcDate(era.start);
+      const end = era.end ? isoToUtcDate(era.end) : null;
+
+      if (defaultedDay) {{
+        const monthStart = makeUtcDate(converted.getUTCFullYear(), month, 1);
+        const monthEnd = monthEndDate(converted.getUTCFullYear(), month);
+        if (monthEnd < start || (end && monthStart > end)) {{
+          return {{ error: `${{eraName}}${{eraYear}}年${{month}}月は${{eraName}}の期間外です。` }};
+        }}
+      }} else if (converted < start || (end && converted > end)) {{
+        if (!end) {{
+          return {{ error: `${{eraName}}は${{formatDate(start)}}からです。` }};
+        }}
+        return {{ error: `${{eraName}}は${{formatDate(start)}}から${{formatDate(end)}}までです。` }};
       }}
 
-      return {{ date: converted, eraYear, month, day, defaultedDay }};
+      return {{ date: converted, eraName, eraYear, month, day, defaultedDay }};
     }}
 
     function formatEraYear(eraYear) {{
@@ -710,7 +805,7 @@ def render_html() -> str:
     }}
 
     function convertEra() {{
-      const parsed = parseReiwaDate(eraInput.value);
+      const parsed = parseWarekiDate(eraInput.value);
 
       if (parsed.error) {{
         eraOutput.textContent = "----";
@@ -721,9 +816,9 @@ def render_html() -> str:
 
       eraOutput.textContent = formatDate(parsed.date);
       if (parsed.defaultedDay) {{
-        eraMessage.textContent = `日が省略されたため、令和${{formatEraYear(parsed.eraYear)}}年${{parsed.month}}月1日として変換しました。`;
+        eraMessage.textContent = `日が省略されたため、${{parsed.eraName}}${{formatEraYear(parsed.eraYear)}}年${{parsed.month}}月1日として変換しました。`;
       }} else {{
-        eraMessage.textContent = `令和${{formatEraYear(parsed.eraYear)}}年${{parsed.month}}月${{parsed.day}}日: ${{formatJapaneseDate(parsed.date)}}`;
+        eraMessage.textContent = `${{parsed.eraName}}${{formatEraYear(parsed.eraYear)}}年${{parsed.month}}月${{parsed.day}}日: ${{formatJapaneseDate(parsed.date)}}`;
       }}
       setStatus(eraStatus, "ok", "変換済");
     }}
@@ -772,8 +867,8 @@ def render_html() -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate the reporting-week HTML tool.")
-    parser.add_argument("input", nargs="?", help="Convert a label such as 2025年第1週")
+    parser = argparse.ArgumentParser(description="Generate the date conversion HTML tool.")
+    parser.add_argument("input", nargs="?", help="Convert a label such as 2025年第1週 or H31.4.30")
     parser.add_argument("-o", "--output", type=Path, default=OUTPUT_FILE)
     args = parser.parse_args()
 
