@@ -2,6 +2,10 @@
 
 [English README](README.md)
 
+<p>
+  <a href="https://yiningsxu.github.io/WeekToDate/"><kbd>公開サイトを開く</kbd></a>
+</p>
+
 報告週、日付、和暦表記を相互に変換する、シンプルな静的 HTML ツールです。報告週パネルは「報告週から日付」と「日付から報告週」を切り替えられ、どちらのモードでも感染症シーズン年・疫学年を表示します。
 
 `index.html` をブラウザで開くだけで利用できます。Python スクリプトから HTML を再生成したり、コマンドラインで単発変換することもできます。
