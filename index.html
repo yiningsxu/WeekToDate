@@ -365,7 +365,7 @@
     <section class="overview" aria-labelledby="page-title">
       <div class="kicker">DATE / JIHS</div>
       <h1 id="page-title">日付 変換ツール</h1>
-      <p class="lead">報告週から週の最初の月曜日へ、または昭和・平成・令和の和暦表記から西暦へ。どちらも YYYY/MM/DD で返します。</p>
+      <p class="lead">報告週から週の最初の月曜日へ、または昭和・平成・令和の和暦表記から西暦へ。報告週では第36週開始の感染症シーズン年も表示します。</p>
       <div class="calendar-band" aria-hidden="true">
         <span class="day">月</span>
         <span class="day">火</span>
@@ -407,7 +407,7 @@
       </div>
 
       <div class="source">
-        <span>週は月曜日開始、年により第53週まで。</span>
+        <span>週は月曜日開始。感染症シーズンは第36週開始。</span>
         <a href="https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html" target="_blank" rel="noopener">報告週対応表 2025年</a>
       </div>
     </section>
@@ -507,6 +507,29 @@
       const current = mondayOfWeekOne(year);
       const next = mondayOfWeekOne(year + 1);
       return Math.round((next - current) / (7 * 24 * 60 * 60 * 1000));
+    }
+
+    function infectionSeasonWeek(year, week) {
+      const seasonStartWeek = 36;
+      if (week >= seasonStartWeek) {
+        return {
+          startYear: year,
+          endYear: year + 1,
+          week: week - seasonStartWeek + 1,
+        };
+      }
+
+      const startYear = year - 1;
+      return {
+        startYear,
+        endYear: year,
+        week: weeksInReportingYear(startYear) - seasonStartWeek + 1 + week,
+      };
+    }
+
+    function formatInfectionSeason(year, week) {
+      const season = infectionSeasonWeek(year, week);
+      return `${season.startYear}~${season.endYear}シーズンの第${season.week}週`;
     }
 
     function reportingWeekMonday(year, week) {
@@ -655,7 +678,7 @@
       sunday.setUTCDate(sunday.getUTCDate() + 6);
 
       weekOutput.textContent = formatDate(monday);
-      weekMessage.textContent = `${year}年第${week}週: ${formatJapaneseDate(monday)} - ${formatJapaneseDate(sunday)}`;
+      weekMessage.textContent = `${year}年第${week}週: ${formatJapaneseDate(monday)} - ${formatJapaneseDate(sunday)} / ${formatInfectionSeason(year, week)}`;
       setStatus(weekStatus, "ok", "変換済");
     }
 

@@ -10,6 +10,7 @@ from pathlib import Path
 SOURCE_URL = "https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html"
 WAREKI_SOURCE_URL = "https://www.jcb.co.jp/processing/share/wareki.html"
 OUTPUT_FILE = Path("index.html")
+SEASON_START_WEEK = 36
 ERA_DEFINITIONS = {
     "令和": {"abbr": "R", "base_year": 2018, "start": date(2019, 5, 1), "end": None},
     "平成": {"abbr": "H", "base_year": 1988, "start": date(1989, 1, 8), "end": date(2019, 4, 30)},
@@ -33,6 +34,27 @@ def reporting_week_monday(year: int, week: int) -> date:
 
 def weeks_in_reporting_year(year: int) -> int:
     return date(year, 12, 28).isocalendar().week
+
+
+def infection_season_week(year: int, week: int) -> tuple[int, int, int]:
+    """Return the infection season start/end years and week number.
+
+    A season starts at reporting week 36 and runs through week 35 of the
+    following reporting year.
+    """
+    if week >= SEASON_START_WEEK:
+        season_start_year = year
+        season_week = week - SEASON_START_WEEK + 1
+    else:
+        season_start_year = year - 1
+        season_week = weeks_in_reporting_year(season_start_year) - SEASON_START_WEEK + 1 + week
+
+    return season_start_year, season_start_year + 1, season_week
+
+
+def format_infection_season(year: int, week: int) -> str:
+    season_start_year, season_end_year, season_week = infection_season_week(year, week)
+    return f"{season_start_year}~{season_end_year}シーズンの第{season_week}週"
 
 
 def normalize_digits(value: str) -> str:
@@ -510,7 +532,7 @@ def render_html() -> str:
     <section class="overview" aria-labelledby="page-title">
       <div class="kicker">DATE / JIHS</div>
       <h1 id="page-title">日付 変換ツール</h1>
-      <p class="lead">報告週から週の最初の月曜日へ、または昭和・平成・令和の和暦表記から西暦へ。どちらも YYYY/MM/DD で返します。</p>
+      <p class="lead">報告週から週の最初の月曜日へ、または昭和・平成・令和の和暦表記から西暦へ。報告週では第36週開始の感染症シーズン年も表示します。</p>
       <div class="calendar-band" aria-hidden="true">
         <span class="day">月</span>
         <span class="day">火</span>
@@ -552,7 +574,7 @@ def render_html() -> str:
       </div>
 
       <div class="source">
-        <span>週は月曜日開始、年により第53週まで。</span>
+        <span>週は月曜日開始。感染症シーズンは第36週開始。</span>
         <a href="{SOURCE_URL}" target="_blank" rel="noopener">報告週対応表 2025年</a>
       </div>
     </section>
@@ -652,6 +674,29 @@ def render_html() -> str:
       const current = mondayOfWeekOne(year);
       const next = mondayOfWeekOne(year + 1);
       return Math.round((next - current) / (7 * 24 * 60 * 60 * 1000));
+    }}
+
+    function infectionSeasonWeek(year, week) {{
+      const seasonStartWeek = {SEASON_START_WEEK};
+      if (week >= seasonStartWeek) {{
+        return {{
+          startYear: year,
+          endYear: year + 1,
+          week: week - seasonStartWeek + 1,
+        }};
+      }}
+
+      const startYear = year - 1;
+      return {{
+        startYear,
+        endYear: year,
+        week: weeksInReportingYear(startYear) - seasonStartWeek + 1 + week,
+      }};
+    }}
+
+    function formatInfectionSeason(year, week) {{
+      const season = infectionSeasonWeek(year, week);
+      return `${{season.startYear}}~${{season.endYear}}シーズンの第${{season.week}}週`;
     }}
 
     function reportingWeekMonday(year, week) {{
@@ -800,7 +845,7 @@ def render_html() -> str:
       sunday.setUTCDate(sunday.getUTCDate() + 6);
 
       weekOutput.textContent = formatDate(monday);
-      weekMessage.textContent = `${{year}}年第${{week}}週: ${{formatJapaneseDate(monday)}} - ${{formatJapaneseDate(sunday)}}`;
+      weekMessage.textContent = `${{year}}年第${{week}}週: ${{formatJapaneseDate(monday)}} - ${{formatJapaneseDate(sunday)}} / ${{formatInfectionSeason(year, week)}}`;
       setStatus(weekStatus, "ok", "変換済");
     }}
 

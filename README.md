@@ -2,13 +2,14 @@
 
 [日本語版はこちら](README.ja.md)
 
-A simple static HTML tool that converts Japanese reporting week labels or Japanese era date labels into Gregorian dates in `YYYY/MM/DD` format.
+A simple static HTML tool that converts Japanese reporting week labels or Japanese era date labels into Gregorian dates in `YYYY/MM/DD` format. For reporting weeks, it also shows the infection season / epidemiological year.
 
 You can use it by opening `index.html` in a browser. The Python script can also regenerate the HTML file or run one-off conversions from the command line.
 
 ## Features
 
 - Convert JIHS/IDWR-style reporting weeks to the Monday date of that week
+- Show the infection season week, using reporting week 36 as the season start
 - Convert Showa, Heisei, and Reiwa era dates to Gregorian dates
 - Normalize full-width digits, letters, and symbols
 - Copy conversion results
@@ -27,10 +28,13 @@ You can use it by opening `index.html` in a browser. The Python script can also 
 
 Reporting weeks are treated as Monday-start ISO week numbers. Week 1 is the week containing January 4.
 
+The infection season starts at reporting week 36 and runs through week 35 of the following reporting year.
+
 Example:
 
 ```text
 2025年第1週 -> 2024/12/30
+2025年第3週 -> 2024~2025 season, week 20
 ```
 
 ### Japanese Era Dates
