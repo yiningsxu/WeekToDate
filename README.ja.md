@@ -2,9 +2,7 @@
 
 [English README](README.md)
 
-<p>
-  <a href="https://yiningsxu.github.io/WeekToDate/"><kbd>公開サイトを開く</kbd></a>
-</p>
+**今すぐ使う：** [![公開サイトを開く](https://img.shields.io/badge/-%E5%85%AC%E9%96%8B%E3%82%B5%E3%82%A4%E3%83%88%E3%82%92%E9%96%8B%E3%81%8F-FF4B4B?style=for-the-badge&logo=githubpages&logoColor=white)](https://yiningsxu.github.io/WeekToDate/)
 
 報告週、日付、和暦表記を相互に変換する、シンプルな静的 HTML ツールです。報告週パネルは「報告週から日付」と「日付から報告週」を切り替えられ、どちらのモードでも感染症シーズン年・疫学年を表示します。
 

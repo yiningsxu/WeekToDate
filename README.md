@@ -2,9 +2,7 @@
 
 [日本語版はこちら](README.ja.md)
 
-<p>
-  <a href="https://yiningsxu.github.io/WeekToDate/"><kbd>Open Live Site</kbd></a>
-</p>
+**Use Now:** [![Open Live Site](https://img.shields.io/badge/-Open%20Live%20Site-FF4B4B?style=for-the-badge&logo=githubpages&logoColor=white)](https://yiningsxu.github.io/WeekToDate/)
 
 A simple static HTML tool that converts Japanese reporting week labels, Gregorian date labels, or Japanese era date labels. The reporting-week panel can switch between week-to-date and date-to-week modes, and both modes show the infection season / epidemiological year.
 
