@@ -36,6 +36,11 @@ def weeks_in_reporting_year(year: int) -> int:
     return date(year, 12, 28).isocalendar().week
 
 
+def reporting_week_day(value: date) -> tuple[int, int, int]:
+    iso_year, iso_week, iso_weekday = value.isocalendar()
+    return iso_year, iso_week, iso_weekday
+
+
 def infection_season_week(year: int, week: int) -> tuple[int, int, int]:
     """Return the infection season start/end years and week number.
 
@@ -55,6 +60,10 @@ def infection_season_week(year: int, week: int) -> tuple[int, int, int]:
 def format_infection_season(year: int, week: int) -> str:
     season_start_year, season_end_year, season_week = infection_season_week(year, week)
     return f"{season_start_year}/{season_end_year}シーズンの第{season_week}週"
+
+
+def format_reporting_week_day(year: int, week: int, weekday: int) -> str:
+    return f"{year}年第{week}週第{weekday}日"
 
 
 def normalize_digits(value: str) -> str:
@@ -80,6 +89,31 @@ def convert_reporting_week_label(value: str) -> str:
     if not 1 <= week <= max_week:
         raise ValueError(f"{year}年は第{max_week}週までです。")
     return reporting_week_monday(year, week).strftime("%Y/%m/%d")
+
+
+def parse_gregorian_date_label(value: str) -> date:
+    normalized = normalize_digits(value).strip()
+    match = re.fullmatch(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?", normalized)
+    if not match:
+        match = re.fullmatch(r"(\d{4})[./-](\d{1,2})[./-](\d{1,2})", normalized)
+
+    if not match:
+        raise ValueError("入力形式は '2025年1月1日' のようにしてください。")
+
+    year = int(match.group(1))
+    month = int(match.group(2))
+    day = int(match.group(3))
+
+    try:
+        return date(year, month, day)
+    except ValueError as exc:
+        raise ValueError("実在する日付を入力してください。") from exc
+
+
+def convert_gregorian_date_label(value: str) -> str:
+    converted = parse_gregorian_date_label(value)
+    year, week, weekday = reporting_week_day(converted)
+    return f"{format_reporting_week_day(year, week, weekday)} / {format_infection_season(year, week)}"
 
 
 def month_end_date(year: int, month: int) -> date:
@@ -153,6 +187,11 @@ def convert_wareki_label(value: str) -> str:
 
 
 def convert_label(value: str) -> str:
+    try:
+        return convert_gregorian_date_label(value)
+    except ValueError:
+        pass
+
     try:
         year, week = parse_reporting_week_label(value)
     except ValueError:
@@ -294,10 +333,17 @@ def render_html() -> str:
     .tool-header {{
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
       gap: 16px;
       padding: 18px 20px;
       border-bottom: 1px solid var(--line);
       background: #fbfcf8;
+    }}
+
+    .tool-actions {{
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
     }}
 
     .tool-title {{
@@ -330,6 +376,25 @@ def render_html() -> str:
       border-color: rgba(161, 63, 40, 0.3);
       background: #fae5de;
       color: var(--warn);
+    }}
+
+    .mode-toggle {{
+      display: grid;
+      width: 38px;
+      min-width: 38px;
+      min-height: 32px;
+      place-items: center;
+      border-color: var(--line-strong);
+      background: #ffffff;
+      color: var(--accent-dark);
+      padding: 0;
+      font-size: 1rem;
+      line-height: 1;
+    }}
+
+    .mode-toggle:hover {{
+      border-color: var(--accent);
+      background: var(--accent-soft);
     }}
 
     .panel {{
@@ -446,6 +511,10 @@ def render_html() -> str:
       gap: 10px;
       align-items: center;
       min-height: 40px;
+    }}
+
+    .copy-detail[hidden] {{
+      display: none;
     }}
 
     .detail-copy {{
@@ -590,13 +659,16 @@ def render_html() -> str:
     <div class="tools">
     <section class="tool" aria-label="報告週変換フォーム">
       <div class="tool-header">
-        <p class="tool-title">週数から月曜日の日付へ</p>
-        <output id="weekStatus" class="status">待機中</output>
+        <p id="weekToolTitle" class="tool-title">週数から月曜日の日付へ</p>
+        <div class="tool-actions">
+          <button id="weekModeToggle" class="mode-toggle" type="button" aria-label="変換方向を切り替え" title="変換方向を切り替え">↔︎</button>
+          <output id="weekStatus" class="status">待機中</output>
+        </div>
       </div>
 
       <div class="panel">
         <label for="weekInput">
-          入力
+          <span id="weekInputLabel">入力</span>
           <div class="input-row">
             <input id="weekInput" type="text" inputmode="text" autocomplete="off" value="2025年第1週" aria-describedby="weekMessage">
             <button id="weekCopyButton" type="button">コピー</button>
@@ -607,7 +679,7 @@ def render_html() -> str:
           <span class="result-label">出力</span>
           <p id="weekOutput" class="date-output">----</p>
           <div class="copy-detail-list">
-            <div class="copy-detail">
+            <div id="weekRangeRow" class="copy-detail">
               <p id="weekMessage" class="meta">入力すると自動で変換します。</p>
               <button id="weekRangeCopyButton" class="detail-copy" type="button" disabled>コピー</button>
             </div>
@@ -618,7 +690,7 @@ def render_html() -> str:
           </div>
         </div>
 
-        <div class="quick-list" aria-label="入力例">
+        <div id="weekExampleList" class="quick-list" aria-label="入力例">
           <button type="button" data-week-example="2025年第1週">2025年第1週</button>
           <button type="button" data-week-example="2025年第52週">2025年第52週</button>
           <button type="button" data-week-example="2020年第53週">2020年第53週</button>
@@ -668,14 +740,22 @@ def render_html() -> str:
   </main>
 
   <script>
+    const WEEK_TO_DATE_MODE = "week-to-date";
+    const DATE_TO_WEEK_MODE = "date-to-week";
+    let weekMode = WEEK_TO_DATE_MODE;
+    const weekToolTitle = document.querySelector("#weekToolTitle");
+    const weekModeToggle = document.querySelector("#weekModeToggle");
+    const weekInputLabel = document.querySelector("#weekInputLabel");
     const weekInput = document.querySelector("#weekInput");
     const weekOutput = document.querySelector("#weekOutput");
     const weekMessage = document.querySelector("#weekMessage");
     const weekSeasonMessage = document.querySelector("#weekSeasonMessage");
     const weekStatus = document.querySelector("#weekStatus");
     const weekCopyButton = document.querySelector("#weekCopyButton");
+    const weekRangeRow = document.querySelector("#weekRangeRow");
     const weekRangeCopyButton = document.querySelector("#weekRangeCopyButton");
     const weekSeasonCopyButton = document.querySelector("#weekSeasonCopyButton");
+    const weekExampleButtons = Array.from(document.querySelectorAll("[data-week-example]"));
     const eraInput = document.querySelector("#eraInput");
     const eraOutput = document.querySelector("#eraOutput");
     const eraMessage = document.querySelector("#eraMessage");

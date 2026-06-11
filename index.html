@@ -45,7 +45,28 @@
       grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
       gap: 32px;
       align-items: center;
-      padding: 48px 0;
+      padding: 76px 0 48px;
+    }
+
+    .language-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
+      min-height: 40px;
+      border-color: var(--line-strong);
+      border-radius: 999px;
+      padding: 0 14px;
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--accent-dark);
+      box-shadow: 0 10px 24px rgba(32, 45, 34, 0.1);
+      font-size: 0.88rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .language-toggle:hover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
     }
 
     .overview {
@@ -77,6 +98,11 @@
       line-height: 0.96;
       font-weight: 850;
       letter-spacing: 0;
+    }
+
+    html[lang="en"] h1 {
+      max-width: 11ch;
+      font-size: clamp(2.45rem, 6.2vw, 5.4rem);
     }
 
     .lead {
@@ -350,7 +376,7 @@
       main {
         grid-template-columns: 1fr;
         align-items: start;
-        padding: 28px 0;
+        padding: 72px 0 32px;
       }
 
       h1 {
@@ -359,6 +385,11 @@
     }
 
     @media (max-width: 540px) {
+      .language-toggle {
+        top: 10px;
+        right: 10px;
+      }
+
       main {
         width: min(100% - 20px, 1080px);
         gap: 22px;
@@ -404,11 +435,12 @@
   </style>
 </head>
 <body>
+  <button id="languageToggle" class="language-toggle" type="button" aria-label="Switch to English">English</button>
   <main>
     <section class="overview" aria-labelledby="page-title">
       <div class="kicker">DATE / JIHS</div>
       <h1 id="page-title">日付 変換ツール</h1>
-      <p class="lead">報告週から週の最初の月曜日へ、または昭和・平成・令和の和暦表記から西暦へ。報告週では第36週開始の感染症シーズン年も表示します。</p>
+      <p class="lead" id="leadText">報告週から週の最初の月曜日へ、または昭和・平成・令和の和暦表記から西暦へ。報告週では第36週開始の感染症シーズン年も表示します。</p>
       <div class="calendar-band" aria-hidden="true">
         <span class="day">月</span>
         <span class="day">火</span>
@@ -421,15 +453,15 @@
     </section>
 
     <div class="tools">
-    <section class="tool" aria-label="報告週変換フォーム">
+    <section id="weekTool" class="tool" aria-label="報告週変換フォーム">
       <div class="tool-header">
-        <p class="tool-title">週数から月曜日の日付へ</p>
+        <p id="weekToolTitle" class="tool-title">週数から月曜日の日付へ</p>
         <output id="weekStatus" class="status">待機中</output>
       </div>
 
       <div class="panel">
         <label for="weekInput">
-          入力
+          <span id="weekInputLabel">入力</span>
           <div class="input-row">
             <input id="weekInput" type="text" inputmode="text" autocomplete="off" value="2025年第1週" aria-describedby="weekMessage">
             <button id="weekCopyButton" type="button">コピー</button>
@@ -437,7 +469,7 @@
         </label>
 
         <div class="result" aria-live="polite">
-          <span class="result-label">出力</span>
+          <span id="weekResultLabel" class="result-label">出力</span>
           <p id="weekOutput" class="date-output">----</p>
           <div class="copy-detail-list">
             <div class="copy-detail">
@@ -451,7 +483,7 @@
           </div>
         </div>
 
-        <div class="quick-list" aria-label="入力例">
+        <div id="weekQuickList" class="quick-list" aria-label="入力例">
           <button type="button" data-week-example="2025年第1週">2025年第1週</button>
           <button type="button" data-week-example="2025年第52週">2025年第52週</button>
           <button type="button" data-week-example="2020年第53週">2020年第53週</button>
@@ -459,20 +491,20 @@
       </div>
 
       <div class="source">
-        <span>週は月曜日開始。感染症シーズンは第36週開始。</span>
-        <a href="https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html" target="_blank" rel="noopener">報告週対応表 2025年</a>
+        <span id="weekSourceText">週は月曜日開始。感染症シーズンは第36週開始。</span>
+        <a id="weekSourceLink" href="https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html" target="_blank" rel="noopener">報告週対応表 2025年</a>
       </div>
     </section>
 
-    <section class="tool" aria-label="和暦西暦変換フォーム">
+    <section id="eraTool" class="tool" aria-label="和暦西暦変換フォーム">
       <div class="tool-header">
-        <p class="tool-title">和暦から西暦の日付へ</p>
+        <p id="eraToolTitle" class="tool-title">和暦から西暦の日付へ</p>
         <output id="eraStatus" class="status">待機中</output>
       </div>
 
       <div class="panel">
         <label for="eraInput">
-          入力
+          <span id="eraInputLabel">入力</span>
           <div class="input-row">
             <input id="eraInput" type="text" inputmode="text" autocomplete="off" value="平成31年4月30日" aria-describedby="eraMessage">
             <button id="eraCopyButton" type="button">コピー</button>
@@ -480,12 +512,12 @@
         </label>
 
         <div class="result" aria-live="polite">
-          <span class="result-label">出力</span>
+          <span id="eraResultLabel" class="result-label">出力</span>
           <p id="eraOutput" class="date-output">----</p>
           <p id="eraMessage" class="meta">日が省略された場合は、その月の1日として変換します。</p>
         </div>
 
-        <div class="quick-list" aria-label="入力例">
+        <div id="eraQuickList" class="quick-list" aria-label="入力例">
           <button type="button" data-era-example="昭和64年1月7日">昭和64年1月7日</button>
           <button type="button" data-era-example="平成31年4月30日">平成31年4月30日</button>
           <button type="button" data-era-example="R6.4">R6.4</button>
@@ -493,14 +525,22 @@
       </div>
 
       <div class="source">
-        <span>略号は S / H / R。日がない入力は月初に設定。</span>
-        <a href="https://www.jcb.co.jp/processing/share/wareki.html" target="_blank" rel="noopener">和暦西暦早見表</a>
+        <span id="eraSourceText">略号は S / H / R。日がない入力は月初に設定。</span>
+        <a id="eraSourceLink" href="https://www.jcb.co.jp/processing/share/wareki.html" target="_blank" rel="noopener">和暦西暦早見表</a>
       </div>
     </section>
     </div>
   </main>
 
   <script>
+    const languageToggle = document.querySelector("#languageToggle");
+    const pageTitle = document.querySelector("#page-title");
+    const leadText = document.querySelector("#leadText");
+    const calendarDays = document.querySelectorAll(".day");
+    const weekTool = document.querySelector("#weekTool");
+    const weekToolTitle = document.querySelector("#weekToolTitle");
+    const weekInputLabel = document.querySelector("#weekInputLabel");
+    const weekResultLabel = document.querySelector("#weekResultLabel");
     const weekInput = document.querySelector("#weekInput");
     const weekOutput = document.querySelector("#weekOutput");
     const weekMessage = document.querySelector("#weekMessage");
@@ -509,17 +549,226 @@
     const weekCopyButton = document.querySelector("#weekCopyButton");
     const weekRangeCopyButton = document.querySelector("#weekRangeCopyButton");
     const weekSeasonCopyButton = document.querySelector("#weekSeasonCopyButton");
+    const weekQuickList = document.querySelector("#weekQuickList");
+    const weekSourceText = document.querySelector("#weekSourceText");
+    const weekSourceLink = document.querySelector("#weekSourceLink");
+    const eraTool = document.querySelector("#eraTool");
+    const eraToolTitle = document.querySelector("#eraToolTitle");
+    const eraInputLabel = document.querySelector("#eraInputLabel");
+    const eraResultLabel = document.querySelector("#eraResultLabel");
     const eraInput = document.querySelector("#eraInput");
     const eraOutput = document.querySelector("#eraOutput");
     const eraMessage = document.querySelector("#eraMessage");
     const eraStatus = document.querySelector("#eraStatus");
     const eraCopyButton = document.querySelector("#eraCopyButton");
+    const eraQuickList = document.querySelector("#eraQuickList");
+    const eraSourceText = document.querySelector("#eraSourceText");
+    const eraSourceLink = document.querySelector("#eraSourceLink");
+    const EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const ERA_ENGLISH_NAMES = { "令和": "Reiwa", "平成": "Heisei", "昭和": "Showa" };
+    const I18N = {
+      ja: {
+        htmlLang: "ja",
+        documentTitle: "日付変換ツール",
+        toggleLabel: "English",
+        toggleAriaLabel: "英語に切り替え",
+        pageTitle: "日付 変換ツール",
+        lead: "報告週から週の最初の月曜日へ、または昭和・平成・令和の和暦表記から西暦へ。報告週では第36週開始の感染症シーズン年も表示します。",
+        days: ["月", "火", "水", "木", "金", "土", "日"],
+        input: "入力",
+        output: "出力",
+        copy: "コピー",
+        examplesLabel: "入力例",
+        status: {
+          pending: "待機中",
+          converted: "変換済",
+          format: "形式確認",
+          range: "範囲外",
+          weekNumber: "週番号",
+          notConverted: "未変換",
+          copied: "コピー済",
+          selectable: "選択可",
+        },
+        week: {
+          toolLabel: "報告週変換フォーム",
+          title: "週数から月曜日の日付へ",
+          idle: "入力すると自動で変換します。",
+          seasonIdle: "感染症シーズン年も表示します。",
+          source: "週は月曜日開始。感染症シーズンは第36週開始。",
+          sourceLink: "報告週対応表 2025年",
+          examples: ["2025年第1週", "2025年第52週", "2020年第53週"],
+          parseExample: "例: 2025年第1週",
+          supportedRange: "対応範囲は1900年から2100年です。",
+          maxWeek: (year, maxWeek) => `${year}年は第${maxWeek}週までです。`,
+          detail: (year, week, monday, sunday) => `${year}年第${week}週: ${formatJapaneseDate(monday)} - ${formatJapaneseDate(sunday)}`,
+          season: (season) => `${season.startYear}/${season.endYear}シーズンの第${season.week}週`,
+        },
+        era: {
+          toolLabel: "和暦西暦変換フォーム",
+          title: "和暦から西暦の日付へ",
+          idle: "日が省略された場合は、その月の1日として変換します。",
+          source: "略号は S / H / R。日がない入力は月初に設定。",
+          sourceLink: "和暦西暦早見表",
+          examples: ["昭和64年1月7日", "平成31年4月30日", "R6.4"],
+          exampleError: "例: 平成31年4月30日 / H31.4.30",
+          yearTooLow: "和暦の年数は1以上で入力してください。",
+          invalidDate: "実在する日付を入力してください。",
+          monthOutside: (eraName, eraYear, month) => `${eraName}${formatEraYear(eraYear)}年${month}月は${eraName}の期間外です。`,
+          starts: (eraName, start) => `${eraName}は${formatDate(start)}からです。`,
+          runs: (eraName, start, end) => `${eraName}は${formatDate(start)}から${formatDate(end)}までです。`,
+          defaulted: (parsed) => `日が省略されたため、${formatEraDateLabel(parsed)}として変換しました。`,
+          detail: (parsed) => `${formatEraDateLabel(parsed)}: ${formatJapaneseDate(parsed.date)}`,
+        },
+      },
+      en: {
+        htmlLang: "en",
+        documentTitle: "Date Conversion Tool",
+        toggleLabel: "日本語",
+        toggleAriaLabel: "Switch to Japanese",
+        pageTitle: "Date Conversion Tool",
+        lead: "Convert reporting weeks to the Monday that starts the week, or convert Japanese era dates from Showa, Heisei, and Reiwa to Gregorian dates. Reporting weeks also show the infectious disease season year that starts at week 36.",
+        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        input: "Input",
+        output: "Output",
+        copy: "Copy",
+        examplesLabel: "Examples",
+        status: {
+          pending: "Ready",
+          converted: "Converted",
+          format: "Check form",
+          range: "Out of range",
+          weekNumber: "Week no.",
+          notConverted: "Not ready",
+          copied: "Copied",
+          selectable: "Selectable",
+        },
+        week: {
+          toolLabel: "Reporting week conversion form",
+          title: "Reporting week to Monday date",
+          idle: "Enter a reporting week to convert it automatically.",
+          seasonIdle: "The infectious disease season year will also appear here.",
+          source: "Weeks start on Monday. The infectious disease season starts at week 36.",
+          sourceLink: "Reporting week table, 2025",
+          examples: ["2025 Week 1", "2025 Week 52", "2020 Week 53"],
+          parseExample: "Example: 2025 Week 1",
+          supportedRange: "Supported years are 1900 through 2100.",
+          maxWeek: (year, maxWeek) => `${year} has ${maxWeek} reporting weeks.`,
+          detail: (year, week, monday, sunday) => `${year} Week ${week}: ${formatEnglishDate(monday)} - ${formatEnglishDate(sunday)}`,
+          season: (season) => `${season.startYear}/${season.endYear} season, week ${season.week}`,
+        },
+        era: {
+          toolLabel: "Japanese era to Gregorian conversion form",
+          title: "Japanese era to Gregorian date",
+          idle: "If the day is omitted, the 1st day of that month is used.",
+          source: "Abbreviations: S / H / R. Month-only inputs use the first day.",
+          sourceLink: "Japanese era conversion table",
+          examples: ["S64.1.7", "H31.4.30", "R6.4"],
+          exampleError: "Example: H31.4.30 / Heisei31.4.30",
+          yearTooLow: "Enter an era year of 1 or greater.",
+          invalidDate: "Enter a real calendar date.",
+          monthOutside: (eraName, eraYear, month) => `${formatEraMonthLabel(eraName, eraYear, month)} is outside the ${formatEraName(eraName)} era.`,
+          starts: (eraName, start) => `${formatEraName(eraName)} starts on ${formatDate(start)}.`,
+          runs: (eraName, start, end) => `${formatEraName(eraName)} runs from ${formatDate(start)} to ${formatDate(end)}.`,
+          defaulted: (parsed) => `No day was entered, so the date was converted as ${formatEraDateLabel(parsed)}.`,
+          detail: (parsed) => `${formatEraDateLabel(parsed)}: ${formatEnglishDate(parsed.date)}`,
+        },
+      },
+    };
+    let currentLanguage = "ja";
     const ERAS = {
       "令和": { abbr: "R", baseYear: 2018, start: "2019-05-01", end: null },
       "平成": { abbr: "H", baseYear: 1988, start: "1989-01-08", end: "2019-04-30" },
       "昭和": { abbr: "S", baseYear: 1925, start: "1926-12-25", end: "1989-01-07" },
     };
     const ERA_BY_ABBR = { R: "令和", H: "平成", S: "昭和" };
+    const ERA_BY_ENGLISH_NAME = { REIWA: "令和", HEISEI: "平成", SHOWA: "昭和" };
+
+    function text() {
+      return I18N[currentLanguage];
+    }
+
+    function setButtonExamples(selector, dataKey, examples) {
+      document.querySelectorAll(selector).forEach((button, index) => {
+        const example = examples[index];
+        button.textContent = example;
+        button.dataset[dataKey] = example;
+      });
+    }
+
+    function remapExampleInput(input, group, previousLanguage, nextLanguage) {
+      const previousExamples = I18N[previousLanguage][group].examples;
+      const currentIndex = previousExamples.indexOf(input.value);
+      if (currentIndex >= 0) {
+        input.value = I18N[nextLanguage][group].examples[currentIndex];
+      }
+    }
+
+    function formatEnglishDate(date) {
+      return `${EN_MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+    }
+
+    function formatEraName(eraName) {
+      return currentLanguage === "en" ? ERA_ENGLISH_NAMES[eraName] : eraName;
+    }
+
+    function formatEraMonthLabel(eraName, eraYear, month) {
+      if (currentLanguage === "en") {
+        return `${formatEraName(eraName)} ${eraYear}, ${EN_MONTHS[month - 1]}`;
+      }
+
+      return `${eraName}${formatEraYear(eraYear)}年${month}月`;
+    }
+
+    function formatEraDateLabel(parsed) {
+      if (currentLanguage === "en") {
+        return `${formatEraName(parsed.eraName)} ${parsed.eraYear}, ${EN_MONTHS[parsed.month - 1]} ${parsed.day}`;
+      }
+
+      return `${parsed.eraName}${formatEraYear(parsed.eraYear)}年${parsed.month}月${parsed.day}日`;
+    }
+
+    function setLanguage(nextLanguage) {
+      const previousLanguage = currentLanguage;
+      remapExampleInput(weekInput, "week", previousLanguage, nextLanguage);
+      remapExampleInput(eraInput, "era", previousLanguage, nextLanguage);
+      currentLanguage = nextLanguage;
+
+      const copy = text();
+      document.documentElement.lang = copy.htmlLang;
+      document.title = copy.documentTitle;
+      languageToggle.textContent = copy.toggleLabel;
+      languageToggle.setAttribute("aria-label", copy.toggleAriaLabel);
+      pageTitle.textContent = copy.pageTitle;
+      leadText.textContent = copy.lead;
+      calendarDays.forEach((day, index) => {
+        day.textContent = copy.days[index];
+      });
+
+      weekTool.setAttribute("aria-label", copy.week.toolLabel);
+      weekToolTitle.textContent = copy.week.title;
+      weekInputLabel.textContent = copy.input;
+      weekResultLabel.textContent = copy.output;
+      weekCopyButton.textContent = copy.copy;
+      weekRangeCopyButton.textContent = copy.copy;
+      weekSeasonCopyButton.textContent = copy.copy;
+      weekQuickList.setAttribute("aria-label", copy.examplesLabel);
+      weekSourceText.textContent = copy.week.source;
+      weekSourceLink.textContent = copy.week.sourceLink;
+      setButtonExamples("[data-week-example]", "weekExample", copy.week.examples);
+
+      eraTool.setAttribute("aria-label", copy.era.toolLabel);
+      eraToolTitle.textContent = copy.era.title;
+      eraInputLabel.textContent = copy.input;
+      eraResultLabel.textContent = copy.output;
+      eraCopyButton.textContent = copy.copy;
+      eraQuickList.setAttribute("aria-label", copy.examplesLabel);
+      eraSourceText.textContent = copy.era.source;
+      eraSourceLink.textContent = copy.era.sourceLink;
+      setButtonExamples("[data-era-example]", "eraExample", copy.era.examples);
+
+      convertWeek();
+      convertEra();
+    }
 
     function normalizeDigits(value) {
       return value
@@ -584,7 +833,7 @@
 
     function formatInfectionSeason(year, week) {
       const season = infectionSeasonWeek(year, week);
-      return `${season.startYear}/${season.endYear}シーズンの第${season.week}週`;
+      return text().week.season(season);
     }
 
     function reportingWeekMonday(year, week) {
@@ -656,7 +905,17 @@
       }
 
       if (!match) {
-        return { error: "例: 平成31年4月30日 / H31.4.30" };
+        match = normalized.match(/^(REIWA|HEISEI|SHOWA)(FIRST|元|\d{1,3})(?:YEAR)?[.\/-]?(\d{1,2})(?:MONTH)?(?:[.\/-]?(\d{1,2})(?:DAY)?)?$/);
+        if (match) {
+          eraName = ERA_BY_ENGLISH_NAME[match[1]];
+          eraYearToken = match[2] === "FIRST" ? "元" : match[2];
+          monthToken = match[3];
+          dayToken = match[4];
+        }
+      }
+
+      if (!match) {
+        return { error: text().era.exampleError };
       }
 
       const era = ERAS[eraName];
@@ -666,16 +925,16 @@
       const day = Number(dayToken || 1);
 
       if (eraYear < 1) {
-        return { error: "和暦の年数は1以上で入力してください。" };
+        return { error: text().era.yearTooLow };
       }
 
       if (month < 1 || month > 12) {
-        return { error: "実在する日付を入力してください。" };
+        return { error: text().era.invalidDate };
       }
 
       const converted = makeUtcDate(era.baseYear + eraYear, month, day);
       if (!converted) {
-        return { error: "実在する日付を入力してください。" };
+        return { error: text().era.invalidDate };
       }
 
       const start = isoToUtcDate(era.start);
@@ -685,13 +944,13 @@
         const monthStart = makeUtcDate(converted.getUTCFullYear(), month, 1);
         const monthEnd = monthEndDate(converted.getUTCFullYear(), month);
         if (monthEnd < start || (end && monthStart > end)) {
-          return { error: `${eraName}${eraYear}年${month}月は${eraName}の期間外です。` };
+          return { error: text().era.monthOutside(eraName, eraYear, month) };
         }
       } else if (converted < start || (end && converted > end)) {
         if (!end) {
-          return { error: `${eraName}は${formatDate(start)}からです。` };
+          return { error: text().era.starts(eraName, start) };
         }
-        return { error: `${eraName}は${formatDate(start)}から${formatDate(end)}までです。` };
+        return { error: text().era.runs(eraName, start, end) };
       }
 
       return { date: converted, eraName, eraYear, month, day, defaultedDay };
@@ -707,14 +966,15 @@
     }
 
     function convertWeek() {
+      const copy = text();
       const parsed = parseReportingWeek(weekInput.value);
 
       if (!parsed) {
         weekOutput.textContent = "----";
-        weekMessage.textContent = "例: 2025年第1週";
-        weekSeasonMessage.textContent = "感染症シーズン年も表示します。";
+        weekMessage.textContent = copy.week.parseExample;
+        weekSeasonMessage.textContent = copy.week.seasonIdle;
         setWeekDetailCopyEnabled(false);
-        setStatus(weekStatus, "error", "形式確認");
+        setStatus(weekStatus, "error", copy.status.format);
         return;
       }
 
@@ -723,19 +983,19 @@
 
       if (year < 1900 || year > 2100) {
         weekOutput.textContent = "----";
-        weekMessage.textContent = "対応範囲は1900年から2100年です。";
+        weekMessage.textContent = copy.week.supportedRange;
         weekSeasonMessage.textContent = "----";
         setWeekDetailCopyEnabled(false);
-        setStatus(weekStatus, "error", "範囲外");
+        setStatus(weekStatus, "error", copy.status.range);
         return;
       }
 
       if (week < 1 || week > maxWeek) {
         weekOutput.textContent = "----";
-        weekMessage.textContent = `${year}年は第${maxWeek}週までです。`;
+        weekMessage.textContent = copy.week.maxWeek(year, maxWeek);
         weekSeasonMessage.textContent = "----";
         setWeekDetailCopyEnabled(false);
-        setStatus(weekStatus, "error", "週番号");
+        setStatus(weekStatus, "error", copy.status.weekNumber);
         return;
       }
 
@@ -744,57 +1004,61 @@
       sunday.setUTCDate(sunday.getUTCDate() + 6);
 
       weekOutput.textContent = formatDate(monday);
-      weekMessage.textContent = `${year}年第${week}週: ${formatJapaneseDate(monday)} - ${formatJapaneseDate(sunday)}`;
+      weekMessage.textContent = copy.week.detail(year, week, monday, sunday);
       weekSeasonMessage.textContent = formatInfectionSeason(year, week);
       setWeekDetailCopyEnabled(true);
-      setStatus(weekStatus, "ok", "変換済");
+      setStatus(weekStatus, "ok", copy.status.converted);
     }
 
     function convertEra() {
+      const copy = text();
       const parsed = parseWarekiDate(eraInput.value);
 
       if (parsed.error) {
         eraOutput.textContent = "----";
         eraMessage.textContent = parsed.error;
-        setStatus(eraStatus, "error", "形式確認");
+        setStatus(eraStatus, "error", copy.status.format);
         return;
       }
 
       eraOutput.textContent = formatDate(parsed.date);
       if (parsed.defaultedDay) {
-        eraMessage.textContent = `日が省略されたため、${parsed.eraName}${formatEraYear(parsed.eraYear)}年${parsed.month}月1日として変換しました。`;
+        eraMessage.textContent = copy.era.defaulted(parsed);
       } else {
-        eraMessage.textContent = `${parsed.eraName}${formatEraYear(parsed.eraYear)}年${parsed.month}月${parsed.day}日: ${formatJapaneseDate(parsed.date)}`;
+        eraMessage.textContent = copy.era.detail(parsed);
       }
-      setStatus(eraStatus, "ok", "変換済");
+      setStatus(eraStatus, "ok", copy.status.converted);
     }
 
     async function copyText(value, statusElement, focusElement) {
       const normalizedValue = value.trim();
       if (!normalizedValue || normalizedValue === "----") {
-        setStatus(statusElement, "error", "未変換");
+        setStatus(statusElement, "error", text().status.notConverted);
         return;
       }
 
       try {
         await navigator.clipboard.writeText(normalizedValue);
-        setStatus(statusElement, "ok", "コピー済");
+        setStatus(statusElement, "ok", text().status.copied);
       } catch {
         focusElement.focus();
-        setStatus(statusElement, "ok", "選択可");
+        setStatus(statusElement, "ok", text().status.selectable);
       }
     }
 
     async function copyOutput(outputElement, statusElement, focusElement) {
       const value = outputElement.textContent.trim();
       if (!/^\d{4}\/\d{2}\/\d{2}$/.test(value)) {
-        setStatus(statusElement, "error", "未変換");
+        setStatus(statusElement, "error", text().status.notConverted);
         return;
       }
 
       await copyText(value, statusElement, focusElement);
     }
 
+    languageToggle.addEventListener("click", () => {
+      setLanguage(currentLanguage === "ja" ? "en" : "ja");
+    });
     weekInput.addEventListener("input", convertWeek);
     eraInput.addEventListener("input", convertEra);
     weekCopyButton.addEventListener("click", () => copyOutput(weekOutput, weekStatus, weekInput));
@@ -816,8 +1080,7 @@
       });
     });
 
-    convertWeek();
-    convertEra();
+    setLanguage("ja");
   </script>
 </body>
 </html>
