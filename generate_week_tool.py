@@ -492,6 +492,10 @@ def render_html() -> str:
       overflow-wrap: anywhere;
     }}
 
+    .date-output[hidden] {{
+      display: none;
+    }}
+
     .meta {{
       margin: 0;
       min-height: 24px;
@@ -798,6 +802,28 @@ def render_html() -> str:
       return null;
     }}
 
+    function parseGregorianDate(value) {{
+      const normalized = normalizeDigits(value).trim();
+      let match = normalized.match(/^(\\d{{4}})\\s*年\\s*(\\d{{1,2}})\\s*月\\s*(\\d{{1,2}})\\s*日?$/);
+      if (!match) {{
+        match = normalized.match(/^(\\d{{4}})[.\\/-](\\d{{1,2}})[.\\/-](\\d{{1,2}})$/);
+      }}
+
+      if (!match) {{
+        return null;
+      }}
+
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const date = makeUtcDate(year, month, day);
+      if (!date) {{
+        return {{ error: "実在する日付を入力してください。" }};
+      }}
+
+      return {{ date }};
+    }}
+
     function mondayOfWeekOne(year) {{
       const jan4 = new Date(Date.UTC(year, 0, 4));
       const day = jan4.getUTCDay() || 7;
@@ -840,6 +866,15 @@ def render_html() -> str:
       return start;
     }}
 
+    function reportingWeekFromDate(date) {{
+      const weekday = date.getUTCDay() || 7;
+      const thursday = new Date(date);
+      thursday.setUTCDate(date.getUTCDate() + 4 - weekday);
+      const year = thursday.getUTCFullYear();
+      const week = Math.floor((date - mondayOfWeekOne(year)) / (7 * 24 * 60 * 60 * 1000)) + 1;
+      return {{ year, week, weekday }};
+    }}
+
     function formatDate(date) {{
       const year = date.getUTCFullYear();
       const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -849,6 +884,10 @@ def render_html() -> str:
 
     function formatJapaneseDate(date) {{
       return `${{date.getUTCFullYear()}}年${{date.getUTCMonth() + 1}}月${{date.getUTCDate()}}日`;
+    }}
+
+    function formatReportingWeekDay(year, week, weekday) {{
+      return `${{year}}年第${{week}}週第${{weekday}}日`;
     }}
 
     function setStatus(statusElement, kind, text) {{
@@ -948,19 +987,52 @@ def render_html() -> str:
       return eraYear === 1 ? "元" : String(eraYear);
     }}
 
-    function setWeekDetailCopyEnabled(isEnabled) {{
-      weekRangeCopyButton.disabled = !isEnabled;
-      weekSeasonCopyButton.disabled = !isEnabled;
+    function setWeekDetailCopyEnabled(options) {{
+      weekRangeCopyButton.disabled = !options.range;
+      weekSeasonCopyButton.disabled = !options.season;
     }}
 
-    function convertWeek() {{
+    function setWeekExamples(examples) {{
+      weekExampleButtons.forEach((button, index) => {{
+        button.dataset.weekExample = examples[index];
+        button.textContent = examples[index];
+      }});
+    }}
+
+    function setWeekMode(nextMode) {{
+      weekMode = nextMode;
+
+      if (weekMode === WEEK_TO_DATE_MODE) {{
+        weekToolTitle.textContent = "週数から月曜日の日付へ";
+        weekInputLabel.textContent = "報告週";
+        weekInput.value = "2025年第1週";
+        weekInput.placeholder = "2025年第1週";
+        weekModeToggle.title = "日付から報告週へ切り替え";
+        weekModeToggle.setAttribute("aria-label", "日付から報告週へ切り替え");
+        setWeekExamples(["2025年第1週", "2025年第52週", "2020年第53週"]);
+      }} else {{
+        weekToolTitle.textContent = "日付から報告週へ";
+        weekInputLabel.textContent = "日付";
+        weekInput.value = "2025年1月1日";
+        weekInput.placeholder = "2025年1月1日";
+        weekModeToggle.title = "報告週から月曜日の日付へ切り替え";
+        weekModeToggle.setAttribute("aria-label", "報告週から月曜日の日付へ切り替え");
+        setWeekExamples(["2025年1月1日", "2025年1月5日", "2024年9月2日"]);
+      }}
+
+      convertWeek();
+    }}
+
+    function convertWeekToDate() {{
       const parsed = parseReportingWeek(weekInput.value);
 
       if (!parsed) {{
+        weekOutput.hidden = false;
         weekOutput.textContent = "----";
         weekMessage.textContent = "例: 2025年第1週";
         weekSeasonMessage.textContent = "感染症シーズン年も表示します。";
-        setWeekDetailCopyEnabled(false);
+        weekRangeRow.hidden = false;
+        setWeekDetailCopyEnabled({{ range: false, season: false }});
         setStatus(weekStatus, "error", "形式確認");
         return;
       }}
@@ -969,19 +1041,23 @@ def render_html() -> str:
       const maxWeek = weeksInReportingYear(year);
 
       if (year < 1900 || year > 2100) {{
+        weekOutput.hidden = false;
         weekOutput.textContent = "----";
         weekMessage.textContent = "対応範囲は1900年から2100年です。";
         weekSeasonMessage.textContent = "----";
-        setWeekDetailCopyEnabled(false);
+        weekRangeRow.hidden = false;
+        setWeekDetailCopyEnabled({{ range: false, season: false }});
         setStatus(weekStatus, "error", "範囲外");
         return;
       }}
 
       if (week < 1 || week > maxWeek) {{
+        weekOutput.hidden = false;
         weekOutput.textContent = "----";
         weekMessage.textContent = `${{year}}年は第${{maxWeek}}週までです。`;
         weekSeasonMessage.textContent = "----";
-        setWeekDetailCopyEnabled(false);
+        weekRangeRow.hidden = false;
+        setWeekDetailCopyEnabled({{ range: false, season: false }});
         setStatus(weekStatus, "error", "週番号");
         return;
       }}
@@ -990,11 +1066,61 @@ def render_html() -> str:
       const sunday = new Date(monday);
       sunday.setUTCDate(sunday.getUTCDate() + 6);
 
+      weekOutput.hidden = false;
       weekOutput.textContent = formatDate(monday);
       weekMessage.textContent = `${{year}}年第${{week}}週: ${{formatJapaneseDate(monday)}} - ${{formatJapaneseDate(sunday)}}`;
       weekSeasonMessage.textContent = formatInfectionSeason(year, week);
-      setWeekDetailCopyEnabled(true);
+      weekRangeRow.hidden = false;
+      setWeekDetailCopyEnabled({{ range: true, season: true }});
       setStatus(weekStatus, "ok", "変換済");
+    }}
+
+    function convertDateToWeek() {{
+      const parsed = parseGregorianDate(weekInput.value);
+
+      if (!parsed) {{
+        weekOutput.hidden = true;
+        weekOutput.textContent = "----";
+        weekRangeRow.hidden = false;
+        weekMessage.textContent = "例: 2025年1月1日";
+        weekSeasonMessage.textContent = "感染症シーズン年も表示します。";
+        setWeekDetailCopyEnabled({{ range: false, season: false }});
+        setStatus(weekStatus, "error", "形式確認");
+        return;
+      }}
+
+      if (parsed.error) {{
+        weekOutput.hidden = true;
+        weekOutput.textContent = "----";
+        weekRangeRow.hidden = false;
+        weekMessage.textContent = parsed.error;
+        weekSeasonMessage.textContent = "----";
+        setWeekDetailCopyEnabled({{ range: false, season: false }});
+        setStatus(weekStatus, "error", "日付確認");
+        return;
+      }}
+
+      const reportingWeek = reportingWeekFromDate(parsed.date);
+
+      weekOutput.hidden = true;
+      weekOutput.textContent = formatReportingWeekDay(
+        reportingWeek.year,
+        reportingWeek.week,
+        reportingWeek.weekday,
+      );
+      weekRangeRow.hidden = false;
+      weekMessage.textContent = weekOutput.textContent;
+      weekSeasonMessage.textContent = formatInfectionSeason(reportingWeek.year, reportingWeek.week);
+      setWeekDetailCopyEnabled({{ range: true, season: true }});
+      setStatus(weekStatus, "ok", "変換済");
+    }}
+
+    function convertWeek() {{
+      if (weekMode === WEEK_TO_DATE_MODE) {{
+        convertWeekToDate();
+      }} else {{
+        convertDateToWeek();
+      }}
     }}
 
     function convertEra() {{
@@ -1032,7 +1158,7 @@ def render_html() -> str:
       }}
     }}
 
-    async function copyOutput(outputElement, statusElement, focusElement) {{
+    async function copyDateOutput(outputElement, statusElement, focusElement) {{
       const value = outputElement.textContent.trim();
       if (!/^\\d{{4}}\\/\\d{{2}}\\/\\d{{2}}$/.test(value)) {{
         setStatus(statusElement, "error", "未変換");
@@ -1044,11 +1170,15 @@ def render_html() -> str:
 
     weekInput.addEventListener("input", convertWeek);
     eraInput.addEventListener("input", convertEra);
-    weekCopyButton.addEventListener("click", () => copyOutput(weekOutput, weekStatus, weekInput));
+    weekModeToggle.addEventListener("click", () => {{
+      setWeekMode(weekMode === WEEK_TO_DATE_MODE ? DATE_TO_WEEK_MODE : WEEK_TO_DATE_MODE);
+      weekInput.focus();
+    }});
+    weekCopyButton.addEventListener("click", () => copyText(weekOutput.textContent, weekStatus, weekInput));
     weekRangeCopyButton.addEventListener("click", () => copyText(weekMessage.textContent, weekStatus, weekInput));
     weekSeasonCopyButton.addEventListener("click", () => copyText(weekSeasonMessage.textContent, weekStatus, weekInput));
-    eraCopyButton.addEventListener("click", () => copyOutput(eraOutput, eraStatus, eraInput));
-    document.querySelectorAll("[data-week-example]").forEach((button) => {{
+    eraCopyButton.addEventListener("click", () => copyDateOutput(eraOutput, eraStatus, eraInput));
+    weekExampleButtons.forEach((button) => {{
       button.addEventListener("click", () => {{
         weekInput.value = button.dataset.weekExample;
         convertWeek();
@@ -1063,7 +1193,7 @@ def render_html() -> str:
       }});
     }});
 
-    convertWeek();
+    setWeekMode(WEEK_TO_DATE_MODE);
     convertEra();
   </script>
 </body>
