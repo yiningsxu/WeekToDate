@@ -340,9 +340,10 @@ def render_html() -> str:
       background: #fbfcf8;
     }}
 
-    .tool-actions {{
+    .mode-switcher {{
       display: flex;
-      align-items: flex-start;
+      align-items: center;
+      flex-wrap: wrap;
       gap: 8px;
     }}
 
@@ -351,6 +352,11 @@ def render_html() -> str:
       font-size: 1rem;
       line-height: 1.4;
       font-weight: 800;
+    }}
+
+    .tool-title.secondary {{
+      color: var(--muted);
+      font-weight: 750;
     }}
 
     .status {{
@@ -663,11 +669,12 @@ def render_html() -> str:
     <div class="tools">
     <section class="tool" aria-label="報告週変換フォーム">
       <div class="tool-header">
-        <p id="weekToolTitle" class="tool-title">週数から月曜日の日付へ</p>
-        <div class="tool-actions">
+        <div class="mode-switcher" aria-label="報告週変換方向">
+          <p id="weekToolTitle" class="tool-title">週数から月曜日の日付へ</p>
           <button id="weekModeToggle" class="mode-toggle" type="button" aria-label="変換方向を切り替え" title="変換方向を切り替え">↔︎</button>
-          <output id="weekStatus" class="status">待機中</output>
+          <p id="weekOtherModeTitle" class="tool-title secondary">日付から報告週へ</p>
         </div>
+        <output id="weekStatus" class="status">待機中</output>
       </div>
 
       <div class="panel">
@@ -748,6 +755,7 @@ def render_html() -> str:
     const DATE_TO_WEEK_MODE = "date-to-week";
     let weekMode = WEEK_TO_DATE_MODE;
     const weekToolTitle = document.querySelector("#weekToolTitle");
+    const weekOtherModeTitle = document.querySelector("#weekOtherModeTitle");
     const weekModeToggle = document.querySelector("#weekModeToggle");
     const weekInputLabel = document.querySelector("#weekInputLabel");
     const weekInput = document.querySelector("#weekInput");
@@ -1004,6 +1012,7 @@ def render_html() -> str:
 
       if (weekMode === WEEK_TO_DATE_MODE) {{
         weekToolTitle.textContent = "週数から月曜日の日付へ";
+        weekOtherModeTitle.textContent = "日付から報告週へ";
         weekInputLabel.textContent = "報告週";
         weekInput.value = "2025年第1週";
         weekInput.placeholder = "2025年第1週";
@@ -1012,6 +1021,7 @@ def render_html() -> str:
         setWeekExamples(["2025年第1週", "2025年第52週", "2020年第53週"]);
       }} else {{
         weekToolTitle.textContent = "日付から報告週へ";
+        weekOtherModeTitle.textContent = "週数から月曜日の日付へ";
         weekInputLabel.textContent = "日付";
         weekInput.value = "2025年1月1日";
         weekInput.placeholder = "2025年1月1日";
