@@ -2,33 +2,38 @@
 
 [日本語版はこちら](README.ja.md)
 
-A simple static HTML tool that converts Japanese reporting week labels, Gregorian date labels, or Japanese era date labels. For reporting weeks and dates, it also shows the infection season / epidemiological year.
+A simple static HTML tool that converts Japanese reporting week labels, Gregorian date labels, or Japanese era date labels. The reporting-week panel can switch between week-to-date and date-to-week modes, and both modes show the infection season / epidemiological year.
 
 You can use it by opening `index.html` in a browser. The Python script can also regenerate the HTML file or run one-off conversions from the command line.
 
 ## Features
 
 - Convert JIHS/IDWR-style reporting weeks to the Monday date of that week
-- Convert Gregorian dates to reporting year, week, and day
+- Switch the reporting-week panel to convert Gregorian dates back to reporting year, week, and day
+- Show the full Monday-Sunday date range for a reporting week
 - Show the infection season week, using reporting week 36 as the season start
 - Convert Showa, Heisei, and Reiwa era dates to Gregorian dates
 - Normalize full-width digits, letters, and symbols
-- Copy conversion results
-- Static HTML UI with example buttons
+- Copy the main result, week/range details, and infection-season details
+- Static responsive HTML UI with a dual-mode title switcher and mode-specific example buttons
 - No external libraries required
 
 ## Supported Input Examples
 
-### Reporting Weeks
+### Reporting Weeks and Gregorian Dates
 
 ```text
 2025年第1週
 2025年第52週
 2020年第53週
 2025年1月1日
+2025/1/1
+2025-01-01
 ```
 
 Reporting weeks are treated as Monday-start ISO week numbers. Week 1 is the week containing January 4.
+
+In the browser UI, the first conversion panel starts in reporting-week-to-date mode. Use the `↔︎` button in the panel title to switch to date-to-reporting-week mode; the input label and example buttons update with the active mode.
 
 The infection season starts at reporting week 36 and runs through week 35 of the following reporting year.
 
@@ -36,6 +41,7 @@ Example:
 
 ```text
 2025年第1週 -> 2024/12/30
+2025年第1週 -> 2025年第1週: 2024年12月30日 - 2025年1月5日
 2025年第3週 -> 2024/2025 season, week 20
 2025年1月1日 -> 2025年第1週第3日
 2025年1月1日 -> 2024/2025 season, week 18
@@ -69,7 +75,7 @@ Open `index.html` in your browser.
 open index.html
 ```
 
-The site also works as-is on static hosting services such as GitHub Pages.
+The site also works as-is on static hosting services such as GitHub Pages. The browser UI has one panel for reporting-week/date conversions and one panel for Japanese-era conversions.
 
 ### Regenerate the HTML
 
