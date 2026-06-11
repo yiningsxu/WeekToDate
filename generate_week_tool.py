@@ -1,0 +1,607 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import re
+from datetime import date
+from pathlib import Path
+
+
+SOURCE_URL = "https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html"
+OUTPUT_FILE = Path("index.html")
+
+
+def reporting_week_monday(year: int, week: int) -> date:
+    """Return the Monday for a JIHS/IDWR reporting week.
+
+    JIHS report-week correspondence tables use Monday-start ISO week numbering:
+    week 1 is the week containing Jan 4, and some years have week 53.
+    """
+    return date.fromisocalendar(year, week, 1)
+
+
+def weeks_in_reporting_year(year: int) -> int:
+    return date(year, 12, 28).isocalendar().week
+
+
+def normalize_digits(value: str) -> str:
+    return value.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+
+
+def parse_reporting_week_label(value: str) -> tuple[int, int]:
+    normalized = normalize_digits(value).strip()
+    strict = re.fullmatch(r"(\d{4})\s*年\s*第?\s*(\d{1,2})\s*週", normalized)
+    if strict:
+        return int(strict.group(1)), int(strict.group(2))
+
+    loose = re.search(r"(\d{4})\D+(\d{1,2})", normalized)
+    if loose:
+        return int(loose.group(1)), int(loose.group(2))
+
+    raise ValueError("入力形式は '2025年第1週' のようにしてください。")
+
+
+def convert_label(value: str) -> str:
+    year, week = parse_reporting_week_label(value)
+    max_week = weeks_in_reporting_year(year)
+    if not 1 <= week <= max_week:
+        raise ValueError(f"{year}年は第{max_week}週までです。")
+    return reporting_week_monday(year, week).strftime("%Y/%m/%d")
+
+
+def render_html() -> str:
+    return f"""<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>報告週 月曜変換ツール</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --paper: #f7f8f4;
+      --surface: #ffffff;
+      --ink: #15181c;
+      --muted: #5f6873;
+      --line: #d8ddd2;
+      --line-strong: #9ca88e;
+      --accent: #1f6f64;
+      --accent-dark: #134c46;
+      --accent-soft: #dceee9;
+      --warn: #a13f28;
+      --focus: #2457d6;
+    }}
+
+    * {{
+      box-sizing: border-box;
+    }}
+
+    body {{
+      margin: 0;
+      min-height: 100dvh;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        linear-gradient(90deg, rgba(21, 24, 28, 0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(21, 24, 28, 0.035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 32px 32px;
+      color: var(--ink);
+      letter-spacing: 0;
+    }}
+
+    main {{
+      width: min(1080px, calc(100% - 32px));
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+      gap: 32px;
+      align-items: center;
+      padding: 48px 0;
+    }}
+
+    .overview {{
+      display: grid;
+      gap: 28px;
+      align-content: center;
+    }}
+
+    .kicker {{
+      width: fit-content;
+      padding: 6px 10px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.62);
+      color: var(--accent-dark);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }}
+
+    h1 {{
+      margin: 0;
+      max-width: 10ch;
+      font-size: clamp(2.7rem, 7vw, 6.2rem);
+      line-height: 0.96;
+      font-weight: 850;
+      letter-spacing: 0;
+    }}
+
+    .lead {{
+      max-width: 58ch;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.8;
+    }}
+
+    .calendar-band {{
+      display: grid;
+      grid-template-columns: repeat(7, minmax(32px, 1fr));
+      gap: 6px;
+      width: min(520px, 100%);
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.72);
+    }}
+
+    .day {{
+      display: grid;
+      min-height: 52px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 750;
+    }}
+
+    .day:first-child {{
+      background: var(--accent-soft);
+      border-color: rgba(31, 111, 100, 0.38);
+      color: var(--accent-dark);
+    }}
+
+    .tool {{
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: 0 20px 45px rgba(32, 45, 34, 0.12);
+      overflow: hidden;
+    }}
+
+    .tool-header {{
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcf8;
+    }}
+
+    .tool-title {{
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.4;
+      font-weight: 800;
+    }}
+
+    .status {{
+      align-self: start;
+      min-width: 72px;
+      padding: 5px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.78rem;
+      font-weight: 750;
+      white-space: nowrap;
+    }}
+
+    .status.ok {{
+      border-color: rgba(31, 111, 100, 0.32);
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+    }}
+
+    .status.error {{
+      border-color: rgba(161, 63, 40, 0.3);
+      background: #fae5de;
+      color: var(--warn);
+    }}
+
+    .panel {{
+      display: grid;
+      gap: 18px;
+      padding: 20px;
+    }}
+
+    label {{
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-weight: 750;
+    }}
+
+    .input-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+    }}
+
+    input {{
+      width: 100%;
+      min-height: 52px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      padding: 0 14px;
+      background: #ffffff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0;
+    }}
+
+    input:focus {{
+      outline: 3px solid rgba(36, 87, 214, 0.2);
+      border-color: var(--focus);
+    }}
+
+    button {{
+      min-height: 52px;
+      border: 1px solid var(--accent-dark);
+      border-radius: 8px;
+      padding: 0 16px;
+      background: var(--accent);
+      color: #ffffff;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }}
+
+    button:hover {{
+      background: var(--accent-dark);
+    }}
+
+    button:focus-visible {{
+      outline: 3px solid rgba(36, 87, 214, 0.28);
+      outline-offset: 2px;
+    }}
+
+    .result {{
+      display: grid;
+      gap: 10px;
+      min-height: 154px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, rgba(220, 238, 233, 0.55), rgba(255, 255, 255, 0.82));
+    }}
+
+    .result-label {{
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 750;
+    }}
+
+    .date-output {{
+      margin: 0;
+      min-height: 54px;
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: clamp(2rem, 6vw, 3.15rem);
+      line-height: 1.05;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }}
+
+    .meta {{
+      margin: 0;
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }}
+
+    .quick-list {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }}
+
+    .quick-list button {{
+      min-height: 40px;
+      border-color: var(--line);
+      background: #ffffff;
+      color: var(--accent-dark);
+      font-size: 0.86rem;
+    }}
+
+    .quick-list button:hover {{
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }}
+
+    .source {{
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--line);
+      background: #fbfcf8;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }}
+
+    a {{
+      color: var(--accent-dark);
+      font-weight: 800;
+      text-decoration-thickness: 0.08em;
+      text-underline-offset: 0.18em;
+    }}
+
+    .visually-hidden {{
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }}
+
+    @media (max-width: 840px) {{
+      main {{
+        grid-template-columns: 1fr;
+        align-items: start;
+        padding: 28px 0;
+      }}
+
+      h1 {{
+        max-width: 12ch;
+      }}
+    }}
+
+    @media (max-width: 540px) {{
+      main {{
+        width: min(100% - 20px, 1080px);
+        gap: 22px;
+      }}
+
+      .overview {{
+        gap: 18px;
+      }}
+
+      .calendar-band {{
+        grid-template-columns: repeat(7, minmax(28px, 1fr));
+        gap: 4px;
+      }}
+
+      .day {{
+        min-height: 42px;
+        font-size: 0.74rem;
+      }}
+
+      .tool-header,
+      .panel,
+      .source {{
+        padding-inline: 14px;
+      }}
+
+      .input-row {{
+        grid-template-columns: 1fr;
+      }}
+
+      .quick-list {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="overview" aria-labelledby="page-title">
+      <div class="kicker">IDWR / JIHS</div>
+      <h1 id="page-title">報告週 月曜変換</h1>
+      <p class="lead">「2025年第1週」の形式から、該当する週の最初の月曜日を YYYY/MM/DD で返します。</p>
+      <div class="calendar-band" aria-hidden="true">
+        <span class="day">月</span>
+        <span class="day">火</span>
+        <span class="day">水</span>
+        <span class="day">木</span>
+        <span class="day">金</span>
+        <span class="day">土</span>
+        <span class="day">日</span>
+      </div>
+    </section>
+
+    <section class="tool" aria-label="報告週変換フォーム">
+      <div class="tool-header">
+        <p class="tool-title">週数から月曜日の日付へ</p>
+        <output id="status" class="status">待機中</output>
+      </div>
+
+      <div class="panel">
+        <label for="weekInput">
+          入力
+          <div class="input-row">
+            <input id="weekInput" type="text" inputmode="text" autocomplete="off" value="2025年第1週" aria-describedby="message">
+            <button id="copyButton" type="button">コピー</button>
+          </div>
+        </label>
+
+        <div class="result" aria-live="polite">
+          <span class="result-label">出力</span>
+          <p id="dateOutput" class="date-output">----</p>
+          <p id="message" class="meta">入力すると自動で変換します。</p>
+        </div>
+
+        <div class="quick-list" aria-label="入力例">
+          <button type="button" data-example="2025年第1週">2025年第1週</button>
+          <button type="button" data-example="2025年第52週">2025年第52週</button>
+          <button type="button" data-example="2020年第53週">2020年第53週</button>
+        </div>
+      </div>
+
+      <div class="source">
+        <span>週は月曜日開始、年により第53週まで。</span>
+        <a href="{SOURCE_URL}" target="_blank" rel="noopener">報告週対応表 2025年</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const input = document.querySelector("#weekInput");
+    const output = document.querySelector("#dateOutput");
+    const message = document.querySelector("#message");
+    const statusBadge = document.querySelector("#status");
+    const copyButton = document.querySelector("#copyButton");
+
+    function normalizeDigits(value) {{
+      return value.replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0));
+    }}
+
+    function parseReportingWeek(value) {{
+      const normalized = normalizeDigits(value).trim();
+      const strict = normalized.match(/^(\\d{{4}})\\s*年\\s*第?\\s*(\\d{{1,2}})\\s*週$/);
+      if (strict) {{
+        return {{ year: Number(strict[1]), week: Number(strict[2]) }};
+      }}
+
+      const loose = normalized.match(/(\\d{{4}})\\D+(\\d{{1,2}})/);
+      if (loose) {{
+        return {{ year: Number(loose[1]), week: Number(loose[2]) }};
+      }}
+
+      return null;
+    }}
+
+    function mondayOfWeekOne(year) {{
+      const jan4 = new Date(Date.UTC(year, 0, 4));
+      const day = jan4.getUTCDay() || 7;
+      jan4.setUTCDate(jan4.getUTCDate() - day + 1);
+      return jan4;
+    }}
+
+    function weeksInReportingYear(year) {{
+      const current = mondayOfWeekOne(year);
+      const next = mondayOfWeekOne(year + 1);
+      return Math.round((next - current) / (7 * 24 * 60 * 60 * 1000));
+    }}
+
+    function reportingWeekMonday(year, week) {{
+      const start = mondayOfWeekOne(year);
+      start.setUTCDate(start.getUTCDate() + (week - 1) * 7);
+      return start;
+    }}
+
+    function formatDate(date) {{
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(date.getUTCDate()).padStart(2, "0");
+      return `${{year}}/${{month}}/${{day}}`;
+    }}
+
+    function formatJapaneseDate(date) {{
+      return `${{date.getUTCFullYear()}}年${{date.getUTCMonth() + 1}}月${{date.getUTCDate()}}日`;
+    }}
+
+    function setStatus(kind, text) {{
+      statusBadge.className = `status ${{kind}}`;
+      statusBadge.textContent = text;
+    }}
+
+    function convert() {{
+      const parsed = parseReportingWeek(input.value);
+
+      if (!parsed) {{
+        output.textContent = "----";
+        message.textContent = "例: 2025年第1週";
+        setStatus("error", "形式確認");
+        return;
+      }}
+
+      const {{ year, week }} = parsed;
+      const maxWeek = weeksInReportingYear(year);
+
+      if (year < 1900 || year > 2100) {{
+        output.textContent = "----";
+        message.textContent = "対応範囲は1900年から2100年です。";
+        setStatus("error", "範囲外");
+        return;
+      }}
+
+      if (week < 1 || week > maxWeek) {{
+        output.textContent = "----";
+        message.textContent = `${{year}}年は第${{maxWeek}}週までです。`;
+        setStatus("error", "週番号");
+        return;
+      }}
+
+      const monday = reportingWeekMonday(year, week);
+      const sunday = new Date(monday);
+      sunday.setUTCDate(sunday.getUTCDate() + 6);
+
+      output.textContent = formatDate(monday);
+      message.textContent = `${{year}}年第${{week}}週: ${{formatJapaneseDate(monday)}} - ${{formatJapaneseDate(sunday)}}`;
+      setStatus("ok", "変換済");
+    }}
+
+    async function copyResult() {{
+      const value = output.textContent.trim();
+      if (!/^\\d{{4}}\\/\\d{{2}}\\/\\d{{2}}$/.test(value)) {{
+        setStatus("error", "未変換");
+        return;
+      }}
+
+      try {{
+        await navigator.clipboard.writeText(value);
+        setStatus("ok", "コピー済");
+      }} catch {{
+        input.focus();
+        setStatus("ok", "選択可");
+      }}
+    }}
+
+    input.addEventListener("input", convert);
+    copyButton.addEventListener("click", copyResult);
+    document.querySelectorAll("[data-example]").forEach((button) => {{
+      button.addEventListener("click", () => {{
+        input.value = button.dataset.example;
+        convert();
+        input.focus();
+      }});
+    }});
+
+    convert();
+  </script>
+</body>
+</html>
+"""
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate the reporting-week HTML tool.")
+    parser.add_argument("input", nargs="?", help="Convert a label such as 2025年第1週")
+    parser.add_argument("-o", "--output", type=Path, default=OUTPUT_FILE)
+    args = parser.parse_args()
+
+    if args.input:
+        print(convert_label(args.input))
+        return
+
+    args.output.write_text(render_html(), encoding="utf-8")
+    print(f"Wrote {args.output}")
+
+
+if __name__ == "__main__":
+    main()
