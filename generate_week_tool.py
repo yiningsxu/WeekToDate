@@ -9,6 +9,12 @@ from pathlib import Path
 
 SOURCE_URL = "https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html"
 OUTPUT_FILE = Path("index.html")
+REIWA_START = date(2019, 5, 1)
+REIWA_BASE_YEAR = 2018
+FULLWIDTH_TRANSLATION = str.maketrans(
+    "０１２３４５６７８９Ｒｒ．。／－　",
+    "0123456789Rr../- ",
+)
 
 
 def reporting_week_monday(year: int, week: int) -> date:
@@ -25,7 +31,7 @@ def weeks_in_reporting_year(year: int) -> int:
 
 
 def normalize_digits(value: str) -> str:
-    return value.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+    return value.translate(FULLWIDTH_TRANSLATION)
 
 
 def parse_reporting_week_label(value: str) -> tuple[int, int]:
@@ -41,8 +47,54 @@ def parse_reporting_week_label(value: str) -> tuple[int, int]:
     raise ValueError("入力形式は '2025年第1週' のようにしてください。")
 
 
-def convert_label(value: str) -> str:
+def convert_reporting_week_label(value: str) -> str:
     year, week = parse_reporting_week_label(value)
+    max_week = weeks_in_reporting_year(year)
+    if not 1 <= week <= max_week:
+        raise ValueError(f"{year}年は第{max_week}週までです。")
+    return reporting_week_monday(year, week).strftime("%Y/%m/%d")
+
+
+def parse_reiwa_label(value: str) -> tuple[int, int, int, bool]:
+    normalized = normalize_digits(value).strip().replace(" ", "").upper()
+    match = re.fullmatch(r"令和(元|\d{1,2})年(\d{1,2})月(?:(\d{1,2})日?)?", normalized)
+    if not match:
+        match = re.fullmatch(r"R(元|\d{1,2})[./-](\d{1,2})(?:[./-](\d{1,2}))?", normalized)
+
+    if not match:
+        raise ValueError("入力形式は '令和6年4月1日' または 'R6.4.1' のようにしてください。")
+
+    era_year = 1 if match.group(1) == "元" else int(match.group(1))
+    month = int(match.group(2))
+    day_was_defaulted = match.group(3) is None
+    day = int(match.group(3) or 1)
+
+    if era_year < 1:
+        raise ValueError("令和の年数は1以上で入力してください。")
+
+    return REIWA_BASE_YEAR + era_year, month, day, day_was_defaulted
+
+
+def convert_reiwa_label(value: str) -> str:
+    year, month, day, _ = parse_reiwa_label(value)
+
+    try:
+        converted = date(year, month, day)
+    except ValueError as exc:
+        raise ValueError("実在する日付を入力してください。") from exc
+
+    if converted < REIWA_START:
+        raise ValueError("令和は2019年5月1日からです。")
+
+    return converted.strftime("%Y/%m/%d")
+
+
+def convert_label(value: str) -> str:
+    try:
+        year, week = parse_reporting_week_label(value)
+    except ValueError:
+        return convert_reiwa_label(value)
+
     max_week = weeks_in_reporting_year(year)
     if not 1 <= week <= max_week:
         raise ValueError(f"{year}年は第{max_week}週までです。")
@@ -55,7 +107,7 @@ def render_html() -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>報告週 月曜変換ツール</title>
+  <title>日付変換ツール</title>
   <style>
     :root {{
       color-scheme: light;
@@ -104,6 +156,11 @@ def render_html() -> str:
       display: grid;
       gap: 28px;
       align-content: center;
+    }}
+
+    .tools {{
+      display: grid;
+      gap: 18px;
     }}
 
     .kicker {{
@@ -410,9 +467,9 @@ def render_html() -> str:
 <body>
   <main>
     <section class="overview" aria-labelledby="page-title">
-      <div class="kicker">IDWR / JIHS</div>
-      <h1 id="page-title">報告週 月曜変換</h1>
-      <p class="lead">「2025年第1週」の形式から、該当する週の最初の月曜日を YYYY/MM/DD で返します。</p>
+      <div class="kicker">DATE / JIHS</div>
+      <h1 id="page-title">日付 変換ツール</h1>
+      <p class="lead">報告週から週の最初の月曜日へ、または令和表記から西暦へ。どちらも YYYY/MM/DD で返します。</p>
       <div class="calendar-band" aria-hidden="true">
         <span class="day">月</span>
         <span class="day">火</span>
@@ -424,31 +481,32 @@ def render_html() -> str:
       </div>
     </section>
 
+    <div class="tools">
     <section class="tool" aria-label="報告週変換フォーム">
       <div class="tool-header">
         <p class="tool-title">週数から月曜日の日付へ</p>
-        <output id="status" class="status">待機中</output>
+        <output id="weekStatus" class="status">待機中</output>
       </div>
 
       <div class="panel">
         <label for="weekInput">
           入力
           <div class="input-row">
-            <input id="weekInput" type="text" inputmode="text" autocomplete="off" value="2025年第1週" aria-describedby="message">
-            <button id="copyButton" type="button">コピー</button>
+            <input id="weekInput" type="text" inputmode="text" autocomplete="off" value="2025年第1週" aria-describedby="weekMessage">
+            <button id="weekCopyButton" type="button">コピー</button>
           </div>
         </label>
 
         <div class="result" aria-live="polite">
           <span class="result-label">出力</span>
-          <p id="dateOutput" class="date-output">----</p>
-          <p id="message" class="meta">入力すると自動で変換します。</p>
+          <p id="weekOutput" class="date-output">----</p>
+          <p id="weekMessage" class="meta">入力すると自動で変換します。</p>
         </div>
 
         <div class="quick-list" aria-label="入力例">
-          <button type="button" data-example="2025年第1週">2025年第1週</button>
-          <button type="button" data-example="2025年第52週">2025年第52週</button>
-          <button type="button" data-example="2020年第53週">2020年第53週</button>
+          <button type="button" data-week-example="2025年第1週">2025年第1週</button>
+          <button type="button" data-week-example="2025年第52週">2025年第52週</button>
+          <button type="button" data-week-example="2020年第53週">2020年第53週</button>
         </div>
       </div>
 
@@ -457,17 +515,64 @@ def render_html() -> str:
         <a href="{SOURCE_URL}" target="_blank" rel="noopener">報告週対応表 2025年</a>
       </div>
     </section>
+
+    <section class="tool" aria-label="和暦西暦変換フォーム">
+      <div class="tool-header">
+        <p class="tool-title">令和から西暦の日付へ</p>
+        <output id="eraStatus" class="status">待機中</output>
+      </div>
+
+      <div class="panel">
+        <label for="eraInput">
+          入力
+          <div class="input-row">
+            <input id="eraInput" type="text" inputmode="text" autocomplete="off" value="令和6年4月" aria-describedby="eraMessage">
+            <button id="eraCopyButton" type="button">コピー</button>
+          </div>
+        </label>
+
+        <div class="result" aria-live="polite">
+          <span class="result-label">出力</span>
+          <p id="eraOutput" class="date-output">----</p>
+          <p id="eraMessage" class="meta">日が省略された場合は、その月の1日として変換します。</p>
+        </div>
+
+        <div class="quick-list" aria-label="入力例">
+          <button type="button" data-era-example="令和1年5月1日">令和1年5月1日</button>
+          <button type="button" data-era-example="令和6年4月">令和6年4月</button>
+          <button type="button" data-era-example="R6.4.1">R6.4.1</button>
+        </div>
+      </div>
+
+      <div class="source">
+        <span>令和元年は2019年5月1日開始。日がない入力は月初に設定。</span>
+      </div>
+    </section>
+    </div>
   </main>
 
   <script>
-    const input = document.querySelector("#weekInput");
-    const output = document.querySelector("#dateOutput");
-    const message = document.querySelector("#message");
-    const statusBadge = document.querySelector("#status");
-    const copyButton = document.querySelector("#copyButton");
+    const weekInput = document.querySelector("#weekInput");
+    const weekOutput = document.querySelector("#weekOutput");
+    const weekMessage = document.querySelector("#weekMessage");
+    const weekStatus = document.querySelector("#weekStatus");
+    const weekCopyButton = document.querySelector("#weekCopyButton");
+    const eraInput = document.querySelector("#eraInput");
+    const eraOutput = document.querySelector("#eraOutput");
+    const eraMessage = document.querySelector("#eraMessage");
+    const eraStatus = document.querySelector("#eraStatus");
+    const eraCopyButton = document.querySelector("#eraCopyButton");
+    const REIWA_START_MS = Date.UTC(2019, 4, 1);
 
     function normalizeDigits(value) {{
-      return value.replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0));
+      return value
+        .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
+        .replace(/[Ｒ]/g, "R")
+        .replace(/[ｒ]/g, "r")
+        .replace(/[．。]/g, ".")
+        .replace(/[／]/g, "/")
+        .replace(/[－ー]/g, "-")
+        .replace(/[　]/g, " ");
     }}
 
     function parseReportingWeek(value) {{
@@ -515,18 +620,66 @@ def render_html() -> str:
       return `${{date.getUTCFullYear()}}年${{date.getUTCMonth() + 1}}月${{date.getUTCDate()}}日`;
     }}
 
-    function setStatus(kind, text) {{
-      statusBadge.className = `status ${{kind}}`;
-      statusBadge.textContent = text;
+    function setStatus(statusElement, kind, text) {{
+      statusElement.className = `status ${{kind}}`;
+      statusElement.textContent = text;
     }}
 
-    function convert() {{
-      const parsed = parseReportingWeek(input.value);
+    function makeUtcDate(year, month, day) {{
+      const candidate = new Date(Date.UTC(year, month - 1, day));
+      if (
+        candidate.getUTCFullYear() !== year ||
+        candidate.getUTCMonth() + 1 !== month ||
+        candidate.getUTCDate() !== day
+      ) {{
+        return null;
+      }}
+      return candidate;
+    }}
+
+    function parseReiwaDate(value) {{
+      const normalized = normalizeDigits(value).trim().replace(/\\s+/g, "").toUpperCase();
+      let match = normalized.match(/^令和(元|\\d{{1,2}})年(\\d{{1,2}})月(?:(\\d{{1,2}})日?)?$/);
+      if (!match) {{
+        match = normalized.match(/^R(元|\\d{{1,2}})[.\\/-](\\d{{1,2}})(?:[.\\/-](\\d{{1,2}}))?$/);
+      }}
+
+      if (!match) {{
+        return {{ error: "例: 令和6年4月1日 / R6.4.1" }};
+      }}
+
+      const eraYear = match[1] === "元" ? 1 : Number(match[1]);
+      const month = Number(match[2]);
+      const defaultedDay = !match[3];
+      const day = Number(match[3] || 1);
+
+      if (eraYear < 1) {{
+        return {{ error: "令和の年数は1以上で入力してください。" }};
+      }}
+
+      const converted = makeUtcDate(2018 + eraYear, month, day);
+      if (!converted) {{
+        return {{ error: "実在する日付を入力してください。" }};
+      }}
+
+      if (converted.getTime() < REIWA_START_MS) {{
+        return {{ error: "令和は2019年5月1日からです。" }};
+      }}
+
+      return {{ date: converted, eraYear, month, day, defaultedDay }};
+    }}
+
+    function formatEraYear(eraYear) {{
+      return eraYear === 1 ? "元" : String(eraYear);
+    }}
+
+    function convertWeek() {{
+      const parsed = parseReportingWeek(weekInput.value);
 
       if (!parsed) {{
-        output.textContent = "----";
-        message.textContent = "例: 2025年第1週";
-        setStatus("error", "形式確認");
+        weekOutput.textContent = "----";
+        weekMessage.textContent = "例: 2025年第1週";
+        setStatus(weekStatus, "error", "形式確認");
         return;
       }}
 
@@ -534,16 +687,16 @@ def render_html() -> str:
       const maxWeek = weeksInReportingYear(year);
 
       if (year < 1900 || year > 2100) {{
-        output.textContent = "----";
-        message.textContent = "対応範囲は1900年から2100年です。";
-        setStatus("error", "範囲外");
+        weekOutput.textContent = "----";
+        weekMessage.textContent = "対応範囲は1900年から2100年です。";
+        setStatus(weekStatus, "error", "範囲外");
         return;
       }}
 
       if (week < 1 || week > maxWeek) {{
-        output.textContent = "----";
-        message.textContent = `${{year}}年は第${{maxWeek}}週までです。`;
-        setStatus("error", "週番号");
+        weekOutput.textContent = "----";
+        weekMessage.textContent = `${{year}}年は第${{maxWeek}}週までです。`;
+        setStatus(weekStatus, "error", "週番号");
         return;
       }}
 
@@ -551,38 +704,67 @@ def render_html() -> str:
       const sunday = new Date(monday);
       sunday.setUTCDate(sunday.getUTCDate() + 6);
 
-      output.textContent = formatDate(monday);
-      message.textContent = `${{year}}年第${{week}}週: ${{formatJapaneseDate(monday)}} - ${{formatJapaneseDate(sunday)}}`;
-      setStatus("ok", "変換済");
+      weekOutput.textContent = formatDate(monday);
+      weekMessage.textContent = `${{year}}年第${{week}}週: ${{formatJapaneseDate(monday)}} - ${{formatJapaneseDate(sunday)}}`;
+      setStatus(weekStatus, "ok", "変換済");
     }}
 
-    async function copyResult() {{
-      const value = output.textContent.trim();
+    function convertEra() {{
+      const parsed = parseReiwaDate(eraInput.value);
+
+      if (parsed.error) {{
+        eraOutput.textContent = "----";
+        eraMessage.textContent = parsed.error;
+        setStatus(eraStatus, "error", "形式確認");
+        return;
+      }}
+
+      eraOutput.textContent = formatDate(parsed.date);
+      if (parsed.defaultedDay) {{
+        eraMessage.textContent = `日が省略されたため、令和${{formatEraYear(parsed.eraYear)}}年${{parsed.month}}月1日として変換しました。`;
+      }} else {{
+        eraMessage.textContent = `令和${{formatEraYear(parsed.eraYear)}}年${{parsed.month}}月${{parsed.day}}日: ${{formatJapaneseDate(parsed.date)}}`;
+      }}
+      setStatus(eraStatus, "ok", "変換済");
+    }}
+
+    async function copyOutput(outputElement, statusElement, focusElement) {{
+      const value = outputElement.textContent.trim();
       if (!/^\\d{{4}}\\/\\d{{2}}\\/\\d{{2}}$/.test(value)) {{
-        setStatus("error", "未変換");
+        setStatus(statusElement, "error", "未変換");
         return;
       }}
 
       try {{
         await navigator.clipboard.writeText(value);
-        setStatus("ok", "コピー済");
+        setStatus(statusElement, "ok", "コピー済");
       }} catch {{
-        input.focus();
-        setStatus("ok", "選択可");
+        focusElement.focus();
+        setStatus(statusElement, "ok", "選択可");
       }}
     }}
 
-    input.addEventListener("input", convert);
-    copyButton.addEventListener("click", copyResult);
-    document.querySelectorAll("[data-example]").forEach((button) => {{
+    weekInput.addEventListener("input", convertWeek);
+    eraInput.addEventListener("input", convertEra);
+    weekCopyButton.addEventListener("click", () => copyOutput(weekOutput, weekStatus, weekInput));
+    eraCopyButton.addEventListener("click", () => copyOutput(eraOutput, eraStatus, eraInput));
+    document.querySelectorAll("[data-week-example]").forEach((button) => {{
       button.addEventListener("click", () => {{
-        input.value = button.dataset.example;
-        convert();
-        input.focus();
+        weekInput.value = button.dataset.weekExample;
+        convertWeek();
+        weekInput.focus();
+      }});
+    }});
+    document.querySelectorAll("[data-era-example]").forEach((button) => {{
+      button.addEventListener("click", () => {{
+        eraInput.value = button.dataset.eraExample;
+        convertEra();
+        eraInput.focus();
       }});
     }});
 
-    convert();
+    convertWeek();
+    convertEra();
   </script>
 </body>
 </html>
