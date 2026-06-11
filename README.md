@@ -1,21 +1,23 @@
-# 日付変換ツール
+# Date Conversion Tool
 
-報告週または和暦表記を `YYYY/MM/DD` 形式の西暦日付へ変換する、シンプルな静的 HTML ツールです。
+[日本語版はこちら](README.ja.md)
 
-`index.html` をブラウザで開くだけで利用できます。Python スクリプトから HTML を再生成したり、コマンドラインで単発変換することもできます。
+A simple static HTML tool that converts Japanese reporting week labels or Japanese era date labels into Gregorian dates in `YYYY/MM/DD` format.
 
-## 機能
+You can use it by opening `index.html` in a browser. The Python script can also regenerate the HTML file or run one-off conversions from the command line.
 
-- JIHS/IDWR 形式の報告週を、その週の月曜日の日付へ変換
-- 昭和・平成・令和の和暦表記を西暦日付へ変換
-- 全角数字、全角英字、全角記号の入力を正規化
-- 変換結果のコピー
-- 入力例ボタン付きの静的 HTML UI
-- 外部ライブラリ不要
+## Features
 
-## 対応する入力例
+- Convert JIHS/IDWR-style reporting weeks to the Monday date of that week
+- Convert Showa, Heisei, and Reiwa era dates to Gregorian dates
+- Normalize full-width digits, letters, and symbols
+- Copy conversion results
+- Static HTML UI with example buttons
+- No external libraries required
 
-### 報告週
+## Supported Input Examples
+
+### Reporting Weeks
 
 ```text
 2025年第1週
@@ -23,15 +25,15 @@
 2020年第53週
 ```
 
-報告週は月曜日開始の ISO 週番号として扱います。第1週は 1月4日を含む週です。
+Reporting weeks are treated as Monday-start ISO week numbers. Week 1 is the week containing January 4.
 
-例:
+Example:
 
 ```text
 2025年第1週 -> 2024/12/30
 ```
 
-### 和暦
+### Japanese Era Dates
 
 ```text
 昭和64年1月7日
@@ -41,39 +43,39 @@ H31.4.30
 R6.4
 ```
 
-日が省略された場合は、その月の1日として変換します。
+If the day is omitted, the tool converts the input as the first day of that month.
 
-例:
+Example:
 
 ```text
 R6.4 -> 2024/04/01
 ```
 
-## 使い方
+## Usage
 
-### ブラウザで使う
+### Use in a Browser
 
-`index.html` をブラウザで開きます。
+Open `index.html` in your browser.
 
 ```bash
 open index.html
 ```
 
-GitHub Pages などに配置する場合も、`index.html` だけで動作します。
+The site also works as-is on static hosting services such as GitHub Pages.
 
-### HTML を再生成する
+### Regenerate the HTML
 
 ```bash
 python3 generate_week_tool.py
 ```
 
-標準では `index.html` が生成されます。出力先を指定する場合:
+By default, this writes `index.html`. To choose another output path:
 
 ```bash
 python3 generate_week_tool.py -o public/index.html
 ```
 
-### コマンドラインで変換する
+### Convert from the Command Line
 
 ```bash
 python3 generate_week_tool.py "2025年第1週"
@@ -81,7 +83,7 @@ python3 generate_week_tool.py "平成31年4月30日"
 python3 generate_week_tool.py "R6.4"
 ```
 
-出力例:
+Example output:
 
 ```text
 2024/12/30
@@ -89,23 +91,24 @@ python3 generate_week_tool.py "R6.4"
 2024/04/01
 ```
 
-## ファイル構成
+## Project Structure
 
 ```text
 .
-├── generate_week_tool.py  # 変換ロジック、HTML 生成、CLI
-├── index.html             # 公開用の静的 HTML サイト
-└── README.md
+├── generate_week_tool.py  # Conversion logic, HTML generation, and CLI
+├── index.html             # Static HTML site for publishing
+├── README.md              # English README
+└── README.ja.md           # Japanese README
 ```
 
-## 参照元
+## References
 
-- [JIHS IDWR 報告週対応表 2025年](https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html)
-- [JCB 和暦西暦早見表](https://www.jcb.co.jp/processing/share/wareki.html)
+- [JIHS IDWR Reporting Week Calendar 2025](https://id-info.jihs.go.jp/surveillance/idwr/calendar/2025/index.html)
+- [JCB Japanese Era / Gregorian Year Reference](https://www.jcb.co.jp/processing/share/wareki.html)
 
-## 必要環境
+## Requirements
 
-- 静的サイトとして使う場合: モダンブラウザ
-- HTML 生成または CLI 変換を行う場合: Python 3.9 以上
+- Static site usage: a modern browser
+- HTML generation or CLI conversion: Python 3.9 or later
 
-外部 Python パッケージは不要です。
+No external Python packages are required.
